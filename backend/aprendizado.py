@@ -2,7 +2,7 @@
 import argparse
 import os
 import time
-from utils import (
+from backend.utils import (
     fetch_html, extract_text_from_html, extract_publish_date,
     chunk_text, ensure_db, insert_source, insert_chunk,
     is_trusted_url, log_action
