@@ -1,0 +1,7 @@
+
+[build]
+builder = "NIXPACKS"
+[deploy]
+startCommand = "supervisord -c /app/docker/supervisord.conf"
+healthcheckPath = "/health"
+healthcheckTimeout = 60
