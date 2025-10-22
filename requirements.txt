@@ -1,1 +1,12 @@
-as
+fastapi
+uvicorn[standard]
+jinja2
+requests
+beautifulsoup4
+pandas
+pdfminer.six
+python-multipart
+spacy
+sentence-transformers
+faiss-cpu
+sqlite-utils
