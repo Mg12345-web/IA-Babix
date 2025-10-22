@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlite-utils
+sentence-transformers
+faiss-cpu
+spacy
+pdfminer.six
+python-multipart
+requests
+beautifulsoup4
+pandas
+jinja2
+google-api-python-client
