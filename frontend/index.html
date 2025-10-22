@@ -1,0 +1,122 @@
+<!-- seu layout original (mantive integro) -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Babix IA - Direito de Trânsito</title>
+<link rel="stylesheet" href="styles.css">
+<link href="https://fonts.googleapis.com/css2?
+family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fontawesome/6.4.0/css/all.min.css">
+9
+</head>
+<body>
+<!-- Sidebar -->
+<div class="sidebar">
+<div class="sidebar-header">
+<i class="fas fa-user-circle woman-icon"></i>
+<div>
+<h2>Babix IA</h2>
+<p class="subtitle">Direito de Trânsito</p>
+</div>
+</div>
+<button class="new-chat-btn">
+<i class="fas fa-plus"></i> Nova Conversa
+</button>
+<nav class="sidebar-nav">
+<a href="#" class="nav-item active">
+<i class="fas fa-home"></i>
+<span>Home</span>
+</a>
+<a href="/dashboard" class="nav-item">
+<i class="fas fa-eye"></i>
+<span>Dashboard</span>
+</a>
+<a href="#" class="nav-item">
+<i class="fas fa-file-alt"></i>
+<span>Minhas Defesas</span>
+</a>
+<a href="#" class="nav-item">
+<i class="fas fa-balance-scale"></i>
+<span>Jurisprudência</span>
+</a>
+<a href="#" class="nav-item">
+<i class="fas fa-book"></i>
+<span>Base CTB</span>
+</a>
+<a href="#" class="nav-item">
+<i class="fas fa-history"></i>
+<span>Histórico</span>
+</a>
+</nav>
+<div class="sidebar-footer">
+<div class="user-info">
+<i class="fas fa-user-circle"></i>
+<span>Meu Perfil</span>
+</div>
+</div>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Chat Header -->
+10
+<div class="chat-header">
+<div class="header-left">
+<i class="fas fa-user-circle woman-icon-small"></i>
+<h1>Babix IA - Assistente de Direito de Trânsito</h1>
+</div>
+<div class="header-actions">
+<button class="icon-btn"><i class="fas fa-cog"></i></button>
+</div>
+</div>
+<!-- Chat Messages -->
+<div class="chat-container" id="chatContainer">
+<div class="welcome-message">
+<i class="fas fa-user-circle woman-icon-large"></i>
+<h2>Olá! Sou a Babix, sua assistente jurídica!</h2>
+<p>Como posso ajudar você hoje com seu caso de trânsito?</p>
+<div class="quick-actions">
+<button class="quick-btn">
+<i class="fas fa-file-invoice"></i>
+ Analisar Auto de Infração
+</button>
+<button class="quick-btn">
+<i class="fas fa-book-open"></i>
+ Consultar Artigo CTB
+</button>
+<button class="quick-btn">
+<i class="fas fa-pen"></i>
+ Criar Defesa
+</button>
+<button class="quick-btn">
+<i class="fas fa-gavel"></i>
+ Buscar Jurisprudência
+</button>
+</div>
+</div>
+</div>
+<!-- Input Area -->
+<div class="input-area">
+<div class="input-container">
+<button class="attach-btn" title="Anexar arquivo">
+<i class="fas fa-paperclip"></i>
+</button>
+<textarea
+id="messageInput"
+placeholder="Digite sua mensagem ou cole o texto do auto
+de infração..."
+rows="1"
+></textarea>
+<button class="send-btn" id="sendBtn">
+<i class="fas fa-paper-plane"></i>
+11
+</button>
+</div>
+<p class="input-hint">A Babix IA pode cometer erros. Verifique
+informações importantes.</p>
+</div>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
