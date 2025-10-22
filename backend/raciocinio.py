@@ -1,7 +1,7 @@
 # raciocinio.py
 import sqlite3
 from typing import List, Dict
-from .utils import ensure_db  # note o ponto (import relativo)
+from backend.utils import ensure_db
 
 CONFIDENCE_THRESHOLD = 0.55
 MIN_SUPPORT_SOURCES = 1
