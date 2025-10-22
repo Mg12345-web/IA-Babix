@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard — Aprendizado Babix</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="sidebar">
+<div class="sidebar-header">
+<i class="fas fa-user-circle woman-icon"></i>
+<div><h2>Babix IA</h2><p class="subtitle">Dashboard de aprendizado</p></
+div>
+</div>
+</div>
+<div class="main-content" style="padding:30px;">
+<h1>Dashboard — Conteúdo aprendido</h1>
+<section style="margin-top:20px;">
+<h2>Fontes indexadas</h2>
+<table style="width:100%;border-collapse:collapse;color:#fff;">
+<thead><tr><th style="text-align:left">URL</th><th>Domain</
+th><th>Published</th><th>Fetched At</th></tr></thead>
+<tbody>
+ {% for s in sources %}
+<tr style="border-top:1px solid #2a2a2a;"><td style="padding:
+10px;"><a href="{{s[1]}}" target="_blank">{{s[1]}}</a></td><td>{{s[2]}}</
+td><td>{{s[4] or '-'}}</td><td>{{s[5]}}</td></tr>
+ {% endfor %}
+15
+</tbody>
+</table>
+</section>
+<section style="margin-top:30px;">
+<h2>Trechos (Chunks)</h2>
+<ul>
+ {% for c in chunks %}
+<li style="margin-bottom:12px;"><strong>{{c[0]}}</strong> —
+<em>{{c[1]}}</em><div style="color:#a3a3a3">{{c[3]}}</div><a href="/api/
+chunk/{{c[0]}}">ver completo</a></li>
+ {% endfor %}
+</ul>
+</section>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/
+all.min.js"></script>
+</body>
+</html>
