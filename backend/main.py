@@ -8,9 +8,9 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader
 
-from .raciocinio import evaluate_topic
-from .memoria import Memoria
-from .utils import ensure_db, log_action
+from backend.raciocinio import evaluate_topic
+from backend.memoria import Memoria
+from backend.utils import ensure_db, log_action
 
 # Caminho para o SQLite
 DB_PATH = os.environ.get("DB_PATH", "db/conhecimento.db")
