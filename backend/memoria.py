@@ -1,7 +1,7 @@
 # backend/memoria.py
 
 import sqlite3
-from utils import ensure_db
+from backend.utils import ensure_db
 
 DB_PATH = "db/conhecimento.db"
 
