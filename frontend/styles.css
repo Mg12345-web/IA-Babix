@@ -1,0 +1,43 @@
+
+:root{
+  --bg:#0d0d0f;
+  --panel:#17171a;
+  --muted:#9aa0a6;
+  --text:#e6e6e7;
+  --red:#e11d2e;
+  --red-600:#c11224;
+  --border:#232327;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+.layout{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+.sidebar{background:#111114;border-right:1px solid var(--border);padding:24px 16px}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.logo{width:32px;height:32px;border-radius:8px;background:var(--red);display:grid;place-items:center;font-weight:700}
+.brand-text{font-size:14px;color:var(--muted)}
+.nav{display:flex;flex-direction:column;gap:8px}
+.nav-item{padding:10px 12px;border-radius:10px;cursor:pointer;color:var(--muted)}
+.nav-item:hover{background:var(--panel);color:var(--text)}
+.nav-item.active{background:var(--red);color:white}
+.main{padding:28px 28px 48px}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.subtitle{color:var(--muted);margin:6px 0 0}
+.btn{border:1px solid var(--border);background:transparent;color:var(--text);padding:10px 14px;border-radius:12px;cursor:pointer}
+.btn.primary{background:var(--red);border-color:var(--red-600);font-weight:600}
+.btn.primary:hover{background:var(--red-600)}
+.btn.ghost{opacity:.8}
+.chat-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;max-width:920px}
+.bubble{display:inline-block;max-width:80%;padding:12px 14px;border-radius:14px;margin:8px 0;line-height:1.35}
+.bubble.bot{background:rgba(225,29,46,.18);border:1px solid rgba(225,29,46,.35)}
+.bubble.user{background:#0f0f12;border:1px solid var(--border);margin-left:auto}
+.hint{display:block;color:var(--muted);margin-top:6px;font-size:13px}
+.quick-actions{display:flex;gap:10px;margin:8px 0 4px}
+.chip{background:#141417;border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:10px;cursor:pointer}
+.chip:hover{border-color:#2b2b31}
+.conversation{min-height:120px;padding:8px 0}
+.ask{display:flex;gap:10px;margin-top:8px}
+.ask input{flex:1;background:#0f0f12;border:1px solid var(--border);border-radius:12px;padding:12px 12px;color:var(--text);outline:none}
+.ask .actions{display:flex;gap:8px}
+.attach{display:grid;place-items:center;width:42px;border:1px dashed var(--border);border-radius:12px;cursor:pointer;user-select:none}
+.btn.send{background:#111114;border-color:#2b2b31}
+@media (max-width: 900px){.layout{grid-template-columns:1fr}.sidebar{display:none}}
