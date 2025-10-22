@@ -1,0 +1,14 @@
+# Core RAG
+langchain-community  # Para loaders e splitters
+langchain-text-splitters
+python-dotenv        # Para carregar variáveis de ambiente
+
+# Ingestão (PDFs e Web)
+pypdf                # Para ler PDFs (necessário para PyPDFLoader)
+beautifulsoup4       # Para fazer o parsing de HTML
+html5lib             # Parser HTML robusto
+
+# Embeddings e Vector DB (O Coração do Cérebro)
+sentence-transformers # Para gerar os vetores
+psycopg2-binary      # Driver para PostgreSQL
+pgvector             # Para a extensão de vetores
