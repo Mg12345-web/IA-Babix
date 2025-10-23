@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . .
 
 # Entra na pasta Backend e instala as dependências
-WORKDIR /app/Backend
+WORKDIR /app/backend
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Expõe a porta padrão do FastAPI
