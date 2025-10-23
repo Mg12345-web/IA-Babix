@@ -4,7 +4,7 @@ import os
 from subprocess import Popen
 import uvicorn
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader
 
@@ -12,19 +12,21 @@ from backend.raciocinio import evaluate_topic
 from backend.memoria import Memoria
 from backend.utils import ensure_db, log_action
 
-# Caminho para o SQLite
+
+# Caminho para o banco SQLite
 DB_PATH = os.environ.get("DB_PATH", "db/conhecimento.db")
 ensure_db(DB_PATH)
 mem = Memoria(DB_PATH)
 
+# Inicializa o app FastAPI
 app = FastAPI(title="Babix IA - Backend")
 
-# Monta o diretório 'frontend' como estático
-app.mount(
-    "/static",
-    StaticFiles(directory=os.path.join(os.path.dirname(__file__), "../frontend")),
-    name="static",
-)
+# Monta o diretório do frontend como estático
+frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
+app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
+
+
+# --- ROTAS PRINCIPAIS ---
 
 # Chat endpoint: recebe {"message": "..."}
 @app.post("/api/chat")
@@ -35,7 +37,8 @@ async def api_chat(payload: dict):
     log_action(DB_PATH, "chat_query", text)
     return JSONResponse(content=res)
 
-# Inicia indexação por query na Web
+
+# Inicia o processo de aprendizado (modo web ou local)
 @app.post("/api/learn")
 async def api_learn(mode: str = Form("web"), query: str = Form(...)):
     if mode not in ("web", "local"):
@@ -43,6 +46,7 @@ async def api_learn(mode: str = Form("web"), query: str = Form(...)):
     script = os.path.join(os.path.dirname(__file__), "aprendizado.py")
     Popen(["python", script, "--db", DB_PATH, "--mode", mode, "--query", query])
     return JSONResponse({"ok": True, "msg": "indexing started"})
+
 
 # Dashboard de aprendizado
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -55,16 +59,26 @@ async def dashboard(request: Request):
     html = tmpl.render(sources=sources, chunks=chunks)
     return HTMLResponse(content=html)
 
-# Retorna texto completo de um chunk
+
+# Retorna texto completo de um chunk específico
 @app.get("/api/chunk/{chunk_id}")
 async def get_chunk(chunk_id: int):
     text = mem.get_chunk_text(chunk_id)
     return JSONResponse({"id": chunk_id, "text": text})
 
+
+# --- ROTA RAIZ (serve o frontend automaticamente) ---
+@app.get("/", response_class=FileResponse)
+async def serve_frontend():
+    index_path = os.path.join(os.path.dirname(__file__), "../frontend/index.html")
+    return FileResponse(index_path)
+
+
+# --- INICIALIZAÇÃO ---
 if __name__ == "__main__":
     uvicorn.run(
-        "main:app",
+        "backend.main:app",
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 8000)),
-        reload=True,
+        reload=False,
     )
