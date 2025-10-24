@@ -5,6 +5,9 @@ from PyPDF2 import PdfReader
 DB_PATH = "backend/db/conhecimento.db"
 PDF_PATH = "backend/dados/MBVT20222.pdf"  # ajuste o nome se estiver diferente
 
+# Variável global para conhecimento em memória
+conhecimento_base = []
+
 def inicializar_db():
     """Cria o banco e as tabelas caso não existam."""
     os.makedirs("backend/db", exist_ok=True)
@@ -51,6 +54,13 @@ def limpar_banco():
     conn.close()
 
 
+def limpar_conhecimento():
+    """Limpa o conhecimento em memória."""
+    global conhecimento_base
+    conhecimento_base = []
+    print("✓ Conhecimento em memória limpo")
+
+
 def extrair_texto_pdf(caminho_pdf):
     """Extrai texto do PDF (modo texto)."""
     texto = ""
@@ -59,42 +69,48 @@ def extrair_texto_pdf(caminho_pdf):
         texto += page.extract_text() or ""
     return texto
 
-def limpar_conhecimento():
-    global conhecimento_base
-    conhecimento_base = []
-    
-def carregar_conhecimento(caminho_pdf="dados/mbft.pdf"):
-    inicializar_db()
-    limpar_conhecimento()
-    texto = extrair_texto_pdf(caminho_pdf)
-    salvar_conhecimento("MBFT", texto)
-    print("📘 Conhecimento do MBFT armazenado com sucesso.")
 
-    # Verifica se o arquivo existe
-    if not os.path.exists(PDF_PATH):
-        print(f"⚠️ Arquivo PDF não encontrado: {PDF_PATH}")
-        return
-
-    print("📘 Lendo MBFT...")
-    texto = extrair_texto_pdf(PDF_PATH)
-
+def salvar_conhecimento(fonte, texto):
+    """Salva conhecimento no banco de dados."""
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
     # Cadastra o documento principal
     cur.execute("INSERT OR IGNORE INTO documentos (nome, tipo, caminho) VALUES (?, ?, ?)",
-                ("MBFT", "pdf", PDF_PATH))
-    doc_id = cur.lastrowid or cur.execute("SELECT id FROM documentos WHERE nome='MBFT'").fetchone()[0]
+                (fonte, "pdf", PDF_PATH))
+    doc_id = cur.lastrowid or cur.execute(f"SELECT id FROM documentos WHERE nome='{fonte}'").fetchone()[0]
 
-    # Insere tudo como uma ficha geral (depois o módulo leitor dividirá)
+    # Insere tudo como uma ficha geral
     cur.execute("""
         INSERT OR REPLACE INTO fichas (codigo, titulo, conteudo, documento_id)
         VALUES (?, ?, ?, ?)
-    """, ("MBFT-GERAL", "Manual Brasileiro de Fiscalização de Trânsito", texto, doc_id))
+    """, (f"{fonte}-GERAL", f"Manual Brasileiro de Fiscalização de Trânsito", texto, doc_id))
 
     conn.commit()
     conn.close()
+    print(f"✓ Conhecimento de {fonte} salvo no banco")
 
+
+def carregar_conhecimento(caminho_pdf=None):
+    """Carrega conhecimento do PDF para o banco de dados."""
+    # Usa PDF_PATH se nenhum caminho for fornecido
+    pdf_final = caminho_pdf if caminho_pdf else PDF_PATH
+    
+    # Verifica se o arquivo existe
+    if not os.path.exists(pdf_final):
+        print(f"⚠️ Arquivo PDF não encontrado: {pdf_final}")
+        return
+
+    # Inicializa banco e limpa conhecimento anterior
+    inicializar_db()
+    limpar_conhecimento()
+    
+    print("📘 Lendo MBFT...")
+    texto = extrair_texto_pdf(pdf_final)
+    
+    # Salva no banco
+    salvar_conhecimento("MBFT", texto)
+    
     print("✅ MBFT carregado na memória!")
 
 
