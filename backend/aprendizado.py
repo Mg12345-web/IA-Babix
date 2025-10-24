@@ -59,7 +59,10 @@ def extrair_texto_pdf(caminho_pdf):
         texto += page.extract_text() or ""
     return texto
 
-
+def limpar_conhecimento():
+    global conhecimento_base
+    conhecimento_base = []
+    
 def carregar_conhecimento(caminho_pdf="dados/mbft.pdf"):
     inicializar_db()
     limpar_conhecimento()
