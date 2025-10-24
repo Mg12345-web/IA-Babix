@@ -2,7 +2,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from backend.aprendizado import carregar_conhecimento
 from backend.raciocinio import gerar_resposta
-from backend.indexador import indexar_fichas  # 🧠 novo import
+from backend.indexador import indexar_mbft
+import os
 
 app = FastAPI(title="Babix IA")
 
@@ -14,19 +15,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔹 Inicializa a IA ao iniciar o servidor
+# 🔹 Evento executado quando o servidor inicia
 @app.on_event("startup")
 async def startup_event():
-    print("🔄 Carregando conhecimento do MBFT...")
-    carregar_conhecimento("dados/mbft.pdf")
-    print("✅ MBFT carregado na memória!")
+    print("\n==============================")
+    print("🚀 Inicializando Babix IA...")
+    print("==============================")
 
-    # 🧩 Indexa automaticamente as fichas do MBFT (só uma vez por inicialização)
     try:
-        indexar_fichas()
-        print("📑 Fichas indexadas com sucesso!")
+        # 🧠 Carregar conhecimento do MBFT
+        print("🔄 Carregando conhecimento do MBFT...")
+        carregar_conhecimento("backend/dados/mbft.pdf")
+        print("✅ MBFT carregado na memória!")
+
+        # 📚 Evita reindexação se o banco já contiver fichas
+        from backend.aprendizado import DB_PATH
+        if os.path.exists(DB_PATH):
+            import sqlite3
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM fichas WHERE codigo != 'MBFT-GERAL'")
+            total_fichas = cur.fetchone()[0]
+            conn.close()
+
+            if total_fichas > 100:
+                print(f"📑 {total_fichas} fichas já indexadas — pulando reindexação.")
+            else:
+                print("🔍 Iniciando indexação automática das fichas...")
+                indexar_mbft()
+        else:
+            print("⚠️ Banco não encontrado, indexando do zero...")
+            indexar_mbft()
+
+        print("✅ Sistema Babix IA pronto para uso!")
+        print("==============================\n")
+
     except Exception as e:
-        print(f"⚠️ Falha ao indexar fichas: {e}")
+        print(f"❌ Erro ao iniciar Babix IA: {e}")
+        print("==============================\n")
+
 
 # 🔹 Endpoint principal de chat
 @app.post("/api/chat")
@@ -36,7 +63,8 @@ async def chat(request: Request):
     resposta = gerar_resposta(pergunta)
     return {"resposta": resposta}
 
+
 # 🔹 Endpoint de status (teste rápido)
 @app.get("/")
 async def root():
-    return {"status": "Babix IA ativa e com MBFT carregado!"}
+    return {"status": "✅ Babix IA ativa e com MBFT carregado!"}
