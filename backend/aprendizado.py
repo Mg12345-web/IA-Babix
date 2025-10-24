@@ -10,6 +10,17 @@ def inicializar_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS fichas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo TEXT UNIQUE,
+            artigo TEXT,
+            gravidade TEXT,
+            valor TEXT,
+            conteudo TEXT
+        )
+    """)
+    # tabela de compatibilidade para respostas gerais (opcional)
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS conhecimento (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             origem TEXT,
@@ -19,30 +30,29 @@ def inicializar_db():
     conn.commit()
     conn.close()
 
-def limpar_conhecimento(origem="MBFT"):
+def limpar_conhecimento():
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM conhecimento WHERE origem=?", (origem,))
+    cur = conn.cursor()
+    cur.execute("DELETE FROM fichas")
+    cur.execute("DELETE FROM conhecimento WHERE origem='MBFT'")
     conn.commit()
     conn.close()
 
 def salvar_conhecimento(origem, conteudo):
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO conhecimento (origem, conteudo) VALUES (?, ?)", (origem, conteudo))
+    cur = conn.cursor()
+    cur.execute("INSERT INTO conhecimento (origem, conteudo) VALUES (?,?)", (origem, conteudo))
     conn.commit()
     conn.close()
 
 def carregar_conhecimento(caminho_pdf):
     inicializar_db()
-    limpar_conhecimento()
-
     pdf_path = Path(caminho_pdf)
     if not pdf_path.exists():
         print(f"❌ Arquivo {caminho_pdf} não encontrado.")
         return
-
-    print(f"📖 Lendo conteúdo do {pdf_path.name}...")
+    print(f"📖 Lendo {pdf_path.name} com pdfplumber…")
     texto = extrair_texto(pdf_path)
+    limpar_conhecimento()
     salvar_conhecimento("MBFT", texto)
-    print("📘 Conhecimento do MBFT armazenado com sucesso.")
+    print("📘 Conhecimento do MBFT armazenado (modo texto).")
