@@ -4,19 +4,22 @@ import hashlib
 from pathlib import Path
 from difflib import SequenceMatcher
 
-# Caminho do banco
+# ============================================================
+# 🔹 Caminhos e configuração
+# ============================================================
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "backend" / "db" / "conhecimento.db"
 
-# ------------------------------------------------------------
-# Utilitários
-# ------------------------------------------------------------
+# ============================================================
+# 🔹 Utilitários
+# ============================================================
 
 def _conn():
     """Abre conexão com o banco"""
     return sqlite3.connect(str(DB_PATH))
 
 def _sim(a: str, b: str) -> float:
+    """Calcula similaridade textual simples"""
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 def _hash_texto(texto: str) -> str:
@@ -28,9 +31,9 @@ def _resumir(texto: str, max_linhas: int = 8) -> str:
     linhas = [l.strip() for l in texto.split("\n") if len(l.strip()) > 50]
     return "\n".join(linhas[:max_linhas]) if linhas else texto[:500]
 
-# ------------------------------------------------------------
-# Funções principais
-# ------------------------------------------------------------
+# ============================================================
+# 🔹 Funções principais de banco e fichas
+# ============================================================
 
 def carregar_documentos() -> list:
     """Retorna todos os documentos cadastrados para indexação."""
@@ -46,14 +49,14 @@ def limpar_fichas_antigas():
         cur.execute("DELETE FROM fichas WHERE codigo NOT LIKE '%GERAL%'")
         conn.commit()
 
-# ------------------------------------------------------------
-# Função de divisão inteligente (para qualquer documento)
-# ------------------------------------------------------------
+# ============================================================
+# 🔹 Divisão e indexação de textos
+# ============================================================
 
 def dividir_em_blocos(texto: str, nome_doc: str) -> list:
     """
-    Divide o texto em blocos de sentido (artigos, seções, ou fichas MBFT).
-    Retorna lista de tuplas (codigo, titulo, conteudo).
+    Divide o texto em blocos de sentido (artigos, seções ou fichas MBFT).
+    Retorna lista de tuplas (codigo, conteudo).
     """
     texto = texto.replace("\r", "")
     texto = re.sub(r"\n{2,}", "\n", texto)
@@ -61,12 +64,13 @@ def dividir_em_blocos(texto: str, nome_doc: str) -> list:
     # Detecta se é MBFT (códigos 123-45)
     if "MBFT" in nome_doc.upper() or re.search(r"\d{3}-\d{2}", texto):
         padrao = re.compile(
-            r"(?P<codigo>\d{3}-\d{2})[\s–-]+(?P<conteudo>.*?)(?=\n\d{3}-\d{2}[\s–-]|$)", re.S
+            r"(?P<codigo>\d{3}-\d{2})[\s–-]+(?P<conteudo>.*?)(?=\n\d{3}-\d{2}[\s–-]|$)",
+            re.S
         )
         fichas = padrao.findall(texto)
         blocos = [(codigo.strip(), conteudo.strip()) for codigo, conteudo in fichas]
     else:
-        # Divide por artigos, seções, títulos ou blocos longos de texto
+        # Divide por artigos, seções, títulos ou blocos longos
         padrao = re.compile(
             r"(?P<titulo>(Art\. ?\d+|SEÇÃO|TÍTULO|CAPÍTULO).+?)(?=(?:Art\. ?\d+|SEÇÃO|TÍTULO|CAPÍTULO|$))",
             re.S | re.I
@@ -80,9 +84,9 @@ def dividir_em_blocos(texto: str, nome_doc: str) -> list:
     print(f"📚 Documento '{nome_doc}' dividido em {len(blocos)} blocos.")
     return blocos
 
-# ------------------------------------------------------------
-# Salvamento das fichas
-# ------------------------------------------------------------
+# ============================================================
+# 🔹 Salvamento das fichas processadas
+# ============================================================
 
 def salvar_blocos(doc_id: int, nome_doc: str, blocos: list):
     """Salva cada bloco como ficha individual no banco."""
@@ -96,8 +100,6 @@ def salvar_blocos(doc_id: int, nome_doc: str, blocos: list):
 
         for codigo, conteudo in blocos:
             resumo = _resumir(conteudo)
-            codigo_hash = _hash_texto(conteudo)
-
             cur.execute("""
                 INSERT OR REPLACE INTO fichas (codigo, titulo, resumo, conteudo, documento_id)
                 VALUES (?, ?, ?, ?, ?)
@@ -108,14 +110,14 @@ def salvar_blocos(doc_id: int, nome_doc: str, blocos: list):
                 print(f"📄 {count} blocos processados de {nome_doc}...")
 
         conn.commit()
+
     print(f"✅ {count} blocos de '{nome_doc}' salvos com sucesso.")
 
-# ------------------------------------------------------------
-# Execução geral
-# ------------------------------------------------------------
+# ============================================================
+# 🔹 Função principal de indexação
+# ============================================================
 
 def indexar_mbft():
-    return indexar_todos()
     """
     Indexa todos os documentos no banco (não apenas o MBFT),
     criando fichas por blocos temáticos.
@@ -133,12 +135,3 @@ def indexar_mbft():
         salvar_blocos(doc_id, nome, blocos)
 
     print("🏁 Indexação completa de todos os documentos!")
-
-# ------------------------------------------------------------
-# Execução isolada
-# ------------------------------------------------------------
-
-if __name__ == "__main__":
-    def indexar_mbft():
-    """Mantém compatibilidade com o main.py"""
-    indexar_todos()
