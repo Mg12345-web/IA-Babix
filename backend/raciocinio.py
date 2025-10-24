@@ -1,100 +1,142 @@
 import sqlite3
 import re
+from pathlib import Path
 from difflib import SequenceMatcher
+from typing import Optional, List, Tuple
 
-DB_PATH = "backend/db/conhecimento.db"
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = BASE_DIR / "backend" / "db" / "conhecimento.db"
 
-# ===============================================
-# 🔹 Busca o texto do MBFT armazenado no banco
-# ===============================================
-def buscar_conhecimento():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT conteudo FROM conhecimento WHERE origem='MBFT'")
-    resultado = cursor.fetchone()
-    conn.close()
-    return resultado[0] if resultado else ""
+def _conn():
+    return sqlite3.connect(str(DB_PATH))
 
-# ===============================================
-# 🔹 Similaridade textual simples
-# ===============================================
-def similaridade(a, b):
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+def _sim(a: str, b: str) -> float:
+    return SequenceMatcher(None, (a or "").lower(), (b or "").lower()).ratio()
 
-# ===============================================
-# 🔹 Explicação interpretativa de uma ficha MBFT
-# ===============================================
-def explicar_ficha(codigo, texto_base):
-    """
-    Gera explicação estruturada e interpretada de uma ficha MBFT (ex: 596-70)
-    """
-    padrao = rf"{codigo}[\s\S]*?(?=\n\d{{3}}-\d{{2}}|\Z)"  # trecho entre fichas
-    trecho = re.search(padrao, texto_base)
+# -----------------------------
+# Busca e formatação de fichas
+# -----------------------------
+def obter_ficha_por_codigo(codigo: str) -> Optional[dict]:
+    with _conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT f.codigo, f.titulo, f.amparo, f.gravidade, f.penalidade, f.pontos, 
+                   f.pagina_inicio, f.pagina_fim, d.nome, f.texto
+            FROM fichas f
+            JOIN documentos d ON d.id = f.documento_id
+            WHERE f.codigo = ?
+            ORDER BY f.id DESC
+            LIMIT 1
+        """, (codigo,))
+        row = cur.fetchone()
+    if not row:
+        return None
+    return {
+        "codigo": row[0],
+        "titulo": row[1] or "",
+        "amparo": row[2] or "",
+        "gravidade": row[3] or "",
+        "penalidade": row[4] or "",
+        "pontos": row[5] or "",
+        "pagina_inicio": row[6],
+        "pagina_fim": row[7],
+        "documento": row[8],
+        "texto": row[9] or ""
+    }
 
-    if not trecho:
-        return f"⚠️ Ficha {codigo} não encontrada no MBFT."
+def buscar_fichas_por_texto(q: str, limit: int = 5) -> List[Tuple[float, dict]]:
+    """Retorna fichas ordenadas por similaridade (título + texto)."""
+    with _conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT f.codigo, f.titulo, f.texto, f.amparo, f.gravidade, f.penalidade, f.pontos,
+                   f.pagina_inicio, f.pagina_fim, d.nome
+            FROM fichas f
+            JOIN documentos d ON d.id = f.documento_id
+        """)
+        rows = cur.fetchall()
 
-    conteudo = trecho.group().strip()
-    explicacao = []
-    explicacao.append(f"🧾 **FICHA {codigo} — Explicação Completa**")
+    scored = []
+    for r in rows:
+        codigo, titulo, texto, amparo, gravidade, penalidade, pontos, p1, p2, doc = r
+        score = max(_sim(q, titulo or ""), _sim(q, texto or ""), _sim(q, amparo or ""))
+        scored.append((score, {
+            "codigo": codigo, "titulo": titulo or "", "texto": texto or "",
+            "amparo": amparo or "", "gravidade": gravidade or "", "penalidade": penalidade or "", "pontos": pontos or "",
+            "pagina_inicio": p1, "pagina_fim": p2, "documento": doc
+        }))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return scored[:limit]
 
-    # Amparo legal
-    art = re.search(r"Art\.\s*\d+[^\n]*", conteudo)
-    if art:
-        explicacao.append(f"⚖️ **Amparo Legal:** {art.group().strip()}")
+def formatar_explicacao(f: dict) -> str:
+    linhas = [f"🧾 **Ficha {f['codigo']} — Explicação**"]
+    if f["titulo"]:
+        linhas.append(f"🚗 **Tipificação/Descrição:** {f['titulo']}")
+    if f["amparo"]:
+        linhas.append(f"⚖️ **Amparo Legal:** {f['amparo']}")
+    if f["gravidade"]:
+        linhas.append(f"💣 **Gravidade:** {f['gravidade']}")
+    if f["penalidade"]:
+        linhas.append(f"💰 **Penalidade:** {f['penalidade']}")
+    if f["pontos"]:
+        linhas.append(f"🏁 **Pontuação:** {f['pontos']}")
+    linhas.append(f"📄 **Fonte:** {f['documento']} — páginas {f['pagina_inicio']}–{f['pagina_fim']}.")
+    linhas.append("\n🧠 **Resumo interpretativo:**")
+    linhas.append("Aplicação conforme condições descritas na ficha. Observe sinalização, contexto e exceções (\"quando não autuar\").")
+    return "\n".join(linhas)
 
-    # Tipificação
-    tipificacao = re.search(r"(Tipificação|Descrição)[^\n]*\n([^\n]+)", conteudo)
-    if tipificacao:
-        explicacao.append(f"🚗 **Descrição / Tipificação:** {tipificacao.group(2).strip()}")
+# -----------------------------
+# Perguntas gerais
+# -----------------------------
+def _texto_completo(origem="MBFT") -> str:
+    with _conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT conteudo FROM conhecimento WHERE origem=? ORDER BY id DESC LIMIT 1", (origem,))
+        row = cur.fetchone()
+    return row[0] if row else ""
 
-    # Gravidade
-    gravidade = re.search(r"Gravidade\s*[:\-]?\s*(\w+)", conteudo)
-    if gravidade:
-        explicacao.append(f"💣 **Gravidade:** {gravidade.group(1)}")
-
-    # Penalidade
-    penalidade = re.search(r"Penalidade\s*[:\-]?\s*([^\n]+)", conteudo)
-    if penalidade:
-        explicacao.append(f"💰 **Penalidade:** {penalidade.group(1).strip()}")
-
-    # Pontuação
-    pontos = re.search(r"Pontuação\s*[:\-]?\s*(\d+)", conteudo)
-    if pontos:
-        explicacao.append(f"🏁 **Pontuação:** {pontos.group(1)} pontos")
-
-    # Indicações complementares
-    if "quando autuar" in conteudo.lower():
-        explicacao.append("🟥 **Quando autuar:** há descrição específica na ficha.")
-    if "quando não autuar" in conteudo.lower():
-        explicacao.append("🟩 **Quando não autuar:** existem exceções descritas na ficha.")
-
-    explicacao.append("\n🧠 **Resumo interpretativo:**")
-    explicacao.append(
-        f"A infração **{codigo}** refere-se a uma conduta prevista no CTB e descrita no MBFT. "
-        f"É normalmente de natureza **gravíssima**, envolvendo risco à segurança viária. "
-        f"O agente deve observar as condições de sinalização e contexto antes da autuação."
+def resposta_conceito_mbft() -> str:
+    texto = _texto_completo("MBFT")
+    total = len(texto.split()) if texto else 0
+    return (
+        "📚 **MBFT — Manual Brasileiro de Fiscalização de Trânsito**\n"
+        "Conjunto de fichas e orientações operacionais para autuação, com amparo no CTB. "
+        "Cada ficha traz tipificação, amparo legal, gravidade, penalidade, pontos e notas de quando (não) autuar. "
+        f"Base atual carregada com ~{total} palavras e fichas indexadas para busca rápida."
     )
 
-    return "\n".join(explicacao)
+# -----------------------------
+# Roteador principal
+# -----------------------------
+def gerar_resposta(pergunta: str) -> str:
+    if not pergunta or not pergunta.strip():
+        return "Faça sua pergunta sobre o MBFT ou informe um código de ficha (ex.: 596-70)."
 
-# ===============================================
-# 🔹 Função principal: gerar resposta do chat
-# ===============================================
-def gerar_resposta(pergunta):
-    texto_base = buscar_conhecimento()
-    if not texto_base:
-        return "Ainda não tenho conhecimento carregado do MBFT."
+    # 1) Se a pergunta contém código de ficha -> explicar
+    m = re.search(r"\b\d{3}-\d{2}\b", pergunta)
+    if m:
+        codigo = m.group(0)
+        f = obter_ficha_por_codigo(codigo)
+        if f:
+            return formatar_explicacao(f)
+        # fallback
+        return f"Não encontrei a ficha {codigo} nas fontes carregadas."
 
-    # Detecta código de ficha (ex: 596-70)
-    codigo_match = re.search(r"\b\d{3}-\d{2}\b", pergunta)
-    if codigo_match:
-        codigo = codigo_match.group()
-        return explicar_ficha(codigo, texto_base)
+    # 2) Perguntas conceituais sobre o MBFT
+    if re.search(r"\b(o que é|o que significa|explique)\b.*\bmbft\b", pergunta, re.IGNORECASE):
+        return resposta_conceito_mbft()
 
-    # Caso não seja uma ficha, faz busca semântica normal
-    blocos = re.split(r'(?<=[.!?])\s+', texto_base)
-    melhor_trecho = max(blocos, key=lambda t: similaridade(t, pergunta))
+    # 3) Busca semântica simples entre fichas
+    candidatos = buscar_fichas_por_texto(pergunta, limit=1)
+    if candidatos and candidatos[0][0] > 0.25:
+        _, ficha = candidatos[0]
+        return formatar_explicacao(ficha)
 
-    resposta = f"📘 Baseando-me no MBFT:\n{melhor_trecho.strip()}"
-    return resposta
+    # 4) Fallback no texto bruto (compatibilidade)
+    texto = _texto_completo("MBFT")
+    if not texto:
+        return "Base do MBFT ainda não carregada."
+    # best sentence
+    partes = re.split(r'(?<=[\.\!\?])\s+', texto)
+    melhor = max(partes, key=lambda s: _sim(s, pergunta)) if partes else texto[:400]
+    return f"📘 Baseando-me no MBFT: {melhor.strip()[:1200]}"
