@@ -1,0 +1,17 @@
+/* Efeitos suaves e estilo futurista */
+body {
+  font-family: 'Inter', sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #9b1c1c;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0b0c;
+}
