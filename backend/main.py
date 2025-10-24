@@ -25,7 +25,7 @@ async def startup_event():
     try:
         # 🧠 Carregar conhecimento do MBFT
         print("🔄 Carregando conhecimento do MBFT...")
-        carregar_conhecimento("backend/dados/mbft.pdf")
+        carregar_conhecimento("dados/mbft.pdf")
         print("✅ MBFT carregado na memória!")
 
         # 📚 Evita reindexação se o banco já contiver fichas
