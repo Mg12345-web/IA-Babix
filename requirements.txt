@@ -1,3 +1,7 @@
 fastapi
 uvicorn
-PyPDF2
+pdfplumber
+pdf2image
+pytesseract
+pillow
+sqlite3-binary
