@@ -39,7 +39,7 @@ def carregar_documentos() -> list:
     """Retorna todos os documentos cadastrados para indexação."""
     with _conn() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, conteudo FROM fichas WHERE codigo LIKE '%GERAL%'")
+        cur.execute("SELECT id, titulo, conteudo FROM fichas WHERE codigo LIKE '%GERAL%'")
         return cur.fetchall()
 
 def limpar_fichas_antigas():
