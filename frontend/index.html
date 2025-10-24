@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Babix IA — Modo Avançado</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body class="bg-[#0b0b0c] text-gray-100 flex h-screen overflow-hidden">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-black/40 border-r border-red-700/30 p-6 flex flex-col">
+    <h1 class="text-2xl font-bold mb-8 flex items-center gap-2 text-red-500">
+      <span class="text-3xl">🧠</span> Babix IA
+    </h1>
+
+    <nav class="flex-1 space-y-4">
+      <a href="#" class="flex items-center gap-2 text-red-400 hover:text-red-300 transition">
+        <span>🏠</span> Home
+      </a>
+      <a href="#" class="flex items-center gap-2 text-gray-400 hover:text-red-300 transition">
+        <span>📘</span> Aprendizado
+      </a>
+      <a href="#" class="flex items-center gap-2 text-gray-400 hover:text-red-300 transition">
+        <span>⚙️</span> Configurações
+      </a>
+    </nav>
+
+    <div class="text-sm text-gray-500 mt-auto">
+      <span class="text-red-400 font-semibold">Modo Avançado</span><br>
+      v1.0 — Babix IA
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 flex flex-col relative bg-gradient-to-br from-black via-[#120000] to-[#1c0000]">
+    <!-- Avatar Background -->
+    <img src="../assets/avatar.png" alt="Babix Avatar" class="absolute right-12 top-20 opacity-10 w-72 rounded-full pointer-events-none select-none" />
+
+    <!-- Header -->
+    <header class="p-6 border-b border-red-700/30 flex justify-between items-center">
+      <h2 class="text-lg font-semibold text-gray-200">Painel Principal</h2>
+      <div class="px-3 py-1 bg-red-600/20 text-red-400 rounded-full text-sm">Modo Avançado</div>
+    </header>
+
+    <!-- Chat and History Area -->
+    <section class="flex flex-1">
+      <!-- Chat Area -->
+      <div class="flex-1 flex flex-col justify-between p-6">
+        <div class="flex-1 overflow-y-auto mb-4 space-y-4" id="chat-area">
+          <div class="p-4 bg-red-900/20 rounded-2xl w-max max-w-[70%]">
+            <p>👋 Olá! Eu sou a Babix IA — Modo Avançado.</p>
+          </div>
+        </div>
+
+        <div class="flex gap-2">
+          <input type="text" placeholder="Digite sua mensagem..." class="flex-1 bg-black/40 border border-red-700/30 rounded-xl p-3 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-red-500" disabled />
+          <button class="bg-red-600/50 text-white px-4 rounded-xl cursor-not-allowed">Enviar</button>
+        </div>
+      </div>
+
+      <!-- History Panel -->
+      <aside class="w-72 border-l border-red-700/30 p-4 bg-black/20">
+        <h3 class="text-red-400 font-semibold mb-4">Histórico</h3>
+        <ul class="space-y-3 text-sm text-gray-400">
+          <li class="p-2 bg-black/30 rounded-lg hover:bg-red-900/20 transition">Primeira interação</li>
+          <li class="p-2 bg-black/30 rounded-lg hover:bg-red-900/20 transition">Aprendizado iniciado</li>
+          <li class="p-2 bg-black/30 rounded-lg hover:bg-red-900/20 transition">Aguardando comandos...</li>
+        </ul>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>
