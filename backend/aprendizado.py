@@ -1,6 +1,7 @@
 import sqlite3
 import os
-from PyPDF2 import PdfReader
+from pathlib import Path
+from backend.leitor import extrair_texto
 
 DB_PATH = "backend/db/conhecimento.db"
 
@@ -32,16 +33,16 @@ def salvar_conhecimento(origem, conteudo):
     conn.commit()
     conn.close()
 
-def extrair_texto_pdf(caminho_pdf):
-    reader = PdfReader(caminho_pdf)
-    texto = ""
-    for page in reader.pages:
-        texto += page.extract_text() or ""
-    return texto
-
 def carregar_conhecimento(caminho_pdf):
     inicializar_db()
     limpar_conhecimento()
-    texto = extrair_texto_pdf(caminho_pdf)
+
+    pdf_path = Path(caminho_pdf)
+    if not pdf_path.exists():
+        print(f"❌ Arquivo {caminho_pdf} não encontrado.")
+        return
+
+    print(f"📖 Lendo conteúdo do {pdf_path.name}...")
+    texto = extrair_texto(pdf_path)
     salvar_conhecimento("MBFT", texto)
     print("📘 Conhecimento do MBFT armazenado com sucesso.")
