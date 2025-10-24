@@ -1,6 +1,6 @@
 # ======================================================
-# 🧠 Babix IA — IA Autônoma com Ollama (instalação direta)
-# Compatível com Railway (Ubuntu 22.04)
+# 🧠 Babix IA — IA Autônoma com Ollama (versão CPU-only)
+# Compatível com Railway - Outubro/2025
 # ======================================================
 
 FROM ubuntu:22.04
@@ -22,13 +22,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # -------------------------
-# 🔹 Instala Ollama manualmente (última versão estável)
+# 🔹 Instala Ollama (CPU-only)
 # -------------------------
 RUN wget https://github.com/ollama/ollama/releases/download/v0.3.13/ollama-linux-amd64.tgz && \
     tar -xvzf ollama-linux-amd64.tgz && \
-    mv bin/ollama /usr/local/bin/ && \
+    mv ./bin/ollama /usr/local/bin/ && \
     chmod +x /usr/local/bin/ollama && \
-    rm -rf bin ollama-linux-amd64.tgz
+    rm -rf ollama-linux-amd64.tgz ./bin ./lib
 
 # -------------------------
 # 🔹 Define diretório de trabalho
@@ -44,7 +44,7 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # -------------------------
-# 🔹 (Opcional) baixa modelo local para cache
+# 🔹 Baixa modelo local (modo seguro)
 # -------------------------
 RUN ollama pull phi3 || true
 
