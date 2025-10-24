@@ -60,9 +60,12 @@ def extrair_texto_pdf(caminho_pdf):
     return texto
 
 
-def carregar_conhecimento():
-    """Inicializa e popula o banco com o MBFT."""
+def carregar_conhecimento(caminho_pdf="dados/mbft.pdf"):
     inicializar_db()
+    limpar_conhecimento()
+    texto = extrair_texto_pdf(caminho_pdf)
+    salvar_conhecimento("MBFT", texto)
+    print("📘 Conhecimento do MBFT armazenado com sucesso.")
 
     # Verifica se o arquivo existe
     if not os.path.exists(PDF_PATH):
