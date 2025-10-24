@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.aprendizado import carregar_conhecimento
 from backend.raciocinio import gerar_resposta
 from backend.indexador import indexar_mbft
+from backend.raciocinio import gerar_resposta_observacao
 import os
 
 app = FastAPI(title="Babix IA")
@@ -63,6 +64,12 @@ async def chat(request: Request):
     resposta = gerar_resposta(pergunta)
     return {"resposta": resposta}
 
+@app.post("/api/analisar")
+async def analisar_observacao(request: Request):
+    data = await request.json()
+    texto = data.get("observacao", "")
+    resposta = gerar_resposta_observacao(texto)
+    return {"resposta": resposta}
 
 # 🔹 Endpoint de status (teste rápido)
 @app.get("/")
