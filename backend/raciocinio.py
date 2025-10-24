@@ -5,7 +5,7 @@ from difflib import SequenceMatcher
 DB_PATH = "backend/db/conhecimento.db"
 
 # ===============================================
-# 🔹 Função: busca o texto do MBFT armazenado
+# 🔹 Busca o texto do MBFT armazenado no banco
 # ===============================================
 def buscar_conhecimento():
     conn = sqlite3.connect(DB_PATH)
@@ -16,28 +16,25 @@ def buscar_conhecimento():
     return resultado[0] if resultado else ""
 
 # ===============================================
-# 🔹 Similaridade textual (para busca semântica simples)
+# 🔹 Similaridade textual simples
 # ===============================================
 def similaridade(a, b):
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 # ===============================================
-# 🔹 Gera explicação detalhada de fichas (modo interpretativo)
+# 🔹 Explicação interpretativa de uma ficha MBFT
 # ===============================================
 def explicar_ficha(codigo, texto_base):
     """
-    Gera uma explicação estruturada de uma ficha MBFT (ex: 596-70)
+    Gera explicação estruturada e interpretada de uma ficha MBFT (ex: 596-70)
     """
-    # Localiza o trecho da ficha pelo código no texto
-    padrao = rf"{codigo}[\s\S]*?(?=\n\d{{3}}-\d{{2}}|\Z)"  # do código até a próxima ficha
+    padrao = rf"{codigo}[\s\S]*?(?=\n\d{{3}}-\d{{2}}|\Z)"  # trecho entre fichas
     trecho = re.search(padrao, texto_base)
-    
+
     if not trecho:
         return f"⚠️ Ficha {codigo} não encontrada no MBFT."
 
     conteudo = trecho.group().strip()
-
-    # Divide por seções comuns do MBFT
     explicacao = []
     explicacao.append(f"🧾 **FICHA {codigo} — Explicação Completa**")
 
@@ -66,7 +63,7 @@ def explicar_ficha(codigo, texto_base):
     if pontos:
         explicacao.append(f"🏁 **Pontuação:** {pontos.group(1)} pontos")
 
-    # Situações de autuação
+    # Indicações complementares
     if "quando autuar" in conteudo.lower():
         explicacao.append("🟥 **Quando autuar:** há descrição específica na ficha.")
     if "quando não autuar" in conteudo.lower():
@@ -74,29 +71,28 @@ def explicar_ficha(codigo, texto_base):
 
     explicacao.append("\n🧠 **Resumo interpretativo:**")
     explicacao.append(
-        f"Esta infração, código {codigo}, normalmente refere-se a uma manobra "
-        f"proibida prevista no CTB. Ela é de natureza **gravíssima** e implica "
-        f"multa com multiplicador e 7 pontos na CNH. O agente deve observar se o local "
-        f"possui linha amarela contínua, placas R-7 ou outras sinalizações restritivas."
+        f"A infração **{codigo}** refere-se a uma conduta prevista no CTB e descrita no MBFT. "
+        f"É normalmente de natureza **gravíssima**, envolvendo risco à segurança viária. "
+        f"O agente deve observar as condições de sinalização e contexto antes da autuação."
     )
 
     return "\n".join(explicacao)
 
 # ===============================================
-# 🔹 Função principal: gera resposta para o chat
+# 🔹 Função principal: gerar resposta do chat
 # ===============================================
 def gerar_resposta(pergunta):
     texto_base = buscar_conhecimento()
     if not texto_base:
         return "Ainda não tenho conhecimento carregado do MBFT."
 
-    # Detecta se é uma solicitação de explicação de ficha
+    # Detecta código de ficha (ex: 596-70)
     codigo_match = re.search(r"\b\d{3}-\d{2}\b", pergunta)
     if codigo_match:
         codigo = codigo_match.group()
         return explicar_ficha(codigo, texto_base)
 
-    # Caso contrário, mantém o modo de similaridade original
+    # Caso não seja uma ficha, faz busca semântica normal
     blocos = re.split(r'(?<=[.!?])\s+', texto_base)
     melhor_trecho = max(blocos, key=lambda t: similaridade(t, pergunta))
 
