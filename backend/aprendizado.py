@@ -1,88 +1,96 @@
-import sqlite3
 import os
+import sqlite3
 from PyPDF2 import PdfReader
 
 DB_PATH = "backend/db/conhecimento.db"
+PDF_PATH = "backend/dados/MBVT20222.pdf"  # ajuste o nome se estiver diferente
 
 def inicializar_db():
+    """Cria o banco e as tabelas caso não existam."""
     os.makedirs("backend/db", exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # 🔹 Tabela principal de documentos (PDFs ou MBFT)
+    # Tabela de documentos (origem do conhecimento)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS documentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT UNIQUE,
             tipo TEXT,
-            origem TEXT,
-            data_insercao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            caminho TEXT
         )
     """)
 
-    # 🔹 Tabela de fichas (relacionada ao documento)
+    # Tabela de fichas (infrações individuais)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS fichas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            documento_id INTEGER,
-            codigo TEXT,
-            artigo TEXT,
+            codigo TEXT UNIQUE,
+            titulo TEXT,
+            amparo TEXT,
             gravidade TEXT,
-            valor TEXT,
+            penalidade TEXT,
+            pontos TEXT,
             conteudo TEXT,
-            FOREIGN KEY(documento_id) REFERENCES documentos(id)
+            documento_id INTEGER,
+            FOREIGN KEY (documento_id) REFERENCES documentos (id)
         )
     """)
 
     conn.commit()
     conn.close()
 
-def limpar_conhecimento(origem="MBFT"):
+
+def limpar_banco():
+    """Remove dados antigos sem apagar estrutura."""
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM documentos WHERE origem=?", (origem,))
-    cursor.execute("DELETE FROM fichas")
+    cur = conn.cursor()
+    cur.execute("DELETE FROM documentos")
+    cur.execute("DELETE FROM fichas")
     conn.commit()
     conn.close()
 
-def salvar_documento(nome, tipo, origem):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR IGNORE INTO documentos (nome, tipo, origem) VALUES (?, ?, ?)",
-                   (nome, tipo, origem))
-    conn.commit()
-    cursor.execute("SELECT id FROM documentos WHERE nome=?", (nome,))
-    documento_id = cursor.fetchone()[0]
-    conn.close()
-    return documento_id
-
-def salvar_ficha(documento_id, codigo, artigo, gravidade, valor, conteudo):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO fichas (documento_id, codigo, artigo, gravidade, valor, conteudo)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (documento_id, codigo, artigo, gravidade, valor, conteudo))
-    conn.commit()
-    conn.close()
 
 def extrair_texto_pdf(caminho_pdf):
-    reader = PdfReader(caminho_pdf)
+    """Extrai texto do PDF (modo texto)."""
     texto = ""
+    reader = PdfReader(caminho_pdf)
     for page in reader.pages:
         texto += page.extract_text() or ""
     return texto
 
-def carregar_conhecimento(caminho_pdf):
+
+def carregar_conhecimento():
+    """Inicializa e popula o banco com o MBFT."""
     inicializar_db()
-    limpar_conhecimento("MBFT")
 
-    nome_arquivo = os.path.basename(caminho_pdf)
-    documento_id = salvar_documento(nome_arquivo, "pdf", "MBFT")
+    # Verifica se o arquivo existe
+    if not os.path.exists(PDF_PATH):
+        print(f"⚠️ Arquivo PDF não encontrado: {PDF_PATH}")
+        return
 
-    texto = extrair_texto_pdf(caminho_pdf)
+    print("📘 Lendo MBFT...")
+    texto = extrair_texto_pdf(PDF_PATH)
 
-    # Aqui você pode futuramente dividir por fichas (ex: "596-70")
-    salvar_ficha(documento_id, "GERAL", "", "", "", texto)
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
 
-    print("📘 Conhecimento do MBFT armazenado com sucesso.")
+    # Cadastra o documento principal
+    cur.execute("INSERT OR IGNORE INTO documentos (nome, tipo, caminho) VALUES (?, ?, ?)",
+                ("MBFT", "pdf", PDF_PATH))
+    doc_id = cur.lastrowid or cur.execute("SELECT id FROM documentos WHERE nome='MBFT'").fetchone()[0]
+
+    # Insere tudo como uma ficha geral (depois o módulo leitor dividirá)
+    cur.execute("""
+        INSERT OR REPLACE INTO fichas (codigo, titulo, conteudo, documento_id)
+        VALUES (?, ?, ?, ?)
+    """, ("MBFT-GERAL", "Manual Brasileiro de Fiscalização de Trânsito", texto, doc_id))
+
+    conn.commit()
+    conn.close()
+
+    print("✅ MBFT carregado na memória!")
+
+
+if __name__ == "__main__":
+    carregar_conhecimento()
