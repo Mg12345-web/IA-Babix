@@ -14,6 +14,7 @@ def _conn():
     """Abre conexão com o banco"""
     return sqlite3.connect(str(DB_PATH))
 
+
 def carregar_texto_geral() -> str:
     """Lê o conteúdo completo do MBFT geral"""
     with _conn() as conn:
@@ -22,6 +23,7 @@ def carregar_texto_geral() -> str:
         row = cur.fetchone()
     return row[0] if row else ""
 
+
 def limpar_fichas_antigas():
     """Remove fichas antigas (mantém apenas a geral)"""
     with _conn() as conn:
@@ -29,33 +31,69 @@ def limpar_fichas_antigas():
         cur.execute("DELETE FROM fichas WHERE codigo != 'MBFT-GERAL'")
         conn.commit()
 
+
+# ------------------------------------------------------------
+# Função de divisão com regex aprimorada
+# ------------------------------------------------------------
 def dividir_em_fichas(texto: str):
     """
     Divide o texto em fichas individuais com base no padrão de código (ex: 596-70).
     Retorna uma lista de tuplas (codigo, conteudo).
     """
-    # Regex para capturar cabeçalho de ficha: ex "596-70 – Dirigir veículo ..."
-    padrao = re.compile(r"(?P<codigo>\d{3}-\d{2})[\s–-]+(?P<titulo>.+?)(?=\n\d{3}-\d{2}|$)", re.S)
+
+    # Normaliza caracteres problemáticos
+    texto = texto.replace("\r", "")
+    texto = re.sub(r"[ ]{2,}", " ", texto)  # remove espaços repetidos
+    texto = re.sub(r"\n{2,}", "\n", texto)  # normaliza quebras duplas
+
+    # Regex mais robusta: detecta o código e isola até o próximo código
+    padrao = re.compile(
+        r"(?P<codigo>\d{3}-\d{2})[\s–-]+(?P<conteudo>.*?)(?=\n\d{3}-\d{2}[\s–-]|$)",
+        re.S
+    )
+
     fichas = padrao.findall(texto)
+    print(f"🔎 Detectadas {len(fichas)} possíveis fichas no MBFT.")
     return fichas
 
+
+# ------------------------------------------------------------
+# Salvamento com logs e verificação
+# ------------------------------------------------------------
 def salvar_fichas(fichas):
     """Salva as fichas individuais no banco"""
+    if not fichas:
+        print("⚠️ Nenhuma ficha para salvar.")
+        return
+
     with _conn() as conn:
         cur = conn.cursor()
         # Busca o documento MBFT
         cur.execute("SELECT id FROM documentos WHERE nome='MBFT'")
         doc_id = cur.fetchone()[0]
+
         count = 0
-        for i, (codigo, conteudo) in enumerate(fichas):
-            titulo = conteudo.strip().split("\n")[0][:200]  # Primeira linha curta
+        for codigo, conteudo in fichas:
+            # Limpeza e formatação
+            codigo = codigo.strip()
+            conteudo = conteudo.strip()
+            titulo = conteudo.split("\n")[0][:200] if conteudo else "(sem título)"
+
+            # Salvamento
             cur.execute("""
-                INSERT OR REPLACE INTO fichas (codigo, titulo, conteudo, documento_id)
+                INSERT OR REPLACE INTO fichas 
+                (codigo, titulo, conteudo, documento_id)
                 VALUES (?, ?, ?, ?)
-            """, (codigo.strip(), titulo.strip(), conteudo.strip(), doc_id))
+            """, (codigo, titulo, conteudo, doc_id))
             count += 1
+
+            # Log parcial a cada 50 fichas
+            if count % 50 == 0:
+                print(f"📄 {count} fichas processadas...")
+
         conn.commit()
-    print(f"📑 {count} fichas indexadas com sucesso!")
+    print(f"📑 {count} fichas indexadas e armazenadas com sucesso!")
+
 
 # ------------------------------------------------------------
 # Execução principal
