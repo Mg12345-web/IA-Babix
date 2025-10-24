@@ -1,60 +1,78 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
-from backend.aprendizado import carregar_conhecimento
-from backend.raciocinio import gerar_resposta, explicar_ficha, buscar_conhecimento
+from pathlib import Path
+import os
 
-app = FastAPI(title="Babix IA")
+from backend.leitor import indexar_mbft_padrao, indexar_pdf
+from backend.raciocinio import gerar_resposta, obter_ficha_por_codigo, formatar_explicacao
 
-# ======================================================
-# 🔹 Middleware CORS
-# ======================================================
+app = FastAPI(title="Babix IA — MBFT Core")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # deixe restrito ao seu domínio do Hostinger se quiser
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ======================================================
-# 🔹 Evento de inicialização
-# ======================================================
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
+
+# -----------------------------
+# Startup: indexa MBFT /dados/mbft.pdf se existir
+# -----------------------------
 @app.on_event("startup")
 async def startup_event():
-    print("🔄 Carregando conhecimento do MBFT...")
-    carregar_conhecimento("dados/mbft.pdf")
-    print("✅ MBFT carregado na memória!")
+    print("🔄 Inicializando Babix IA…")
+    indexar_mbft_padrao()
+    print("✅ Pronta para responder.")
 
-# ======================================================
-# 🔹 Endpoint principal de chat
-# ======================================================
+# -----------------------------
+# Chat livre
+# -----------------------------
 @app.post("/api/chat")
 async def chat(request: Request):
     data = await request.json()
-    pergunta = data.get("mensagem", "")
+    pergunta = (data.get("mensagem") or "").strip()
     resposta = gerar_resposta(pergunta)
     return {"resposta": resposta}
 
-# ======================================================
-# 🔹 Novo endpoint: explicação direta de fichas MBFT
-# ======================================================
+# -----------------------------
+# Explicação direta por código
+# -----------------------------
 @app.post("/api/explicar")
 async def explicar(request: Request):
     data = await request.json()
-    codigo = data.get("codigo", "").strip()
+    codigo = (data.get("codigo") or "").strip()
     if not codigo:
-        return {"erro": "É necessário informar o código da ficha, ex: 596-70."}
+        return {"erro": "Informe o código de ficha. Ex.: 596-70"}
+    f = obter_ficha_por_codigo(codigo)
+    if not f:
+        return {"erro": f"Ficha {codigo} não encontrada."}
+    return {"codigo": codigo, "explicacao": formatar_explicacao(f)}
 
-    texto_base = buscar_conhecimento()
-    if not texto_base:
-        return {"erro": "Base do MBFT ainda não carregada."}
+# -----------------------------
+# Upload seguro de novos PDFs (admin)
+# -----------------------------
+@app.post("/api/learn")
+async def learn(file: UploadFile = File(...), authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return {"erro": "Token ausente. Use Authorization: Bearer <ADMIN_TOKEN>."}
+    token = authorization.split(" ", 1)[1]
+    if token != (ADMIN_TOKEN or ""):
+        return {"erro": "Acesso negado. Token inválido."}
 
-    resposta = explicar_ficha(codigo, texto_base)
-    return {"codigo": codigo, "explicacao": resposta}
+    dados_dir = Path(__file__).resolve().parent.parent / "dados"
+    dados_dir.mkdir(parents=True, exist_ok=True)
+    destino = dados_dir / file.filename
+    destino.write_bytes(await file.read())
 
-# ======================================================
-# 🔹 Status de verificação
-# ======================================================
+    resumo = indexar_pdf(str(destino), Path(file.filename).stem, limpar_fichas_anteriores=False)
+    return {"status": "✅ Novo conhecimento adicionado.", "resumo": resumo}
+
+# -----------------------------
+# Health
+# -----------------------------
 @app.get("/")
 async def root():
-    return {"status": "Babix IA ativa e com MBFT carregado!"}
+    return {"status": "Babix IA ativa (MBFT indexado se presente)."}
