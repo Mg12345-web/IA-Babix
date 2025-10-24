@@ -114,7 +114,8 @@ def salvar_blocos(doc_id: int, nome_doc: str, blocos: list):
 # Execução geral
 # ------------------------------------------------------------
 
-def indexar_todos():
+def indexar_mbft():
+    return indexar_todos()
     """
     Indexa todos os documentos no banco (não apenas o MBFT),
     criando fichas por blocos temáticos.
@@ -138,4 +139,6 @@ def indexar_todos():
 # ------------------------------------------------------------
 
 if __name__ == "__main__":
+    def indexar_mbft():
+    """Mantém compatibilidade com o main.py"""
     indexar_todos()
