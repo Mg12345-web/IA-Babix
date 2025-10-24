@@ -37,7 +37,7 @@ async def startup_event():
 
         if not os.path.exists(DB_PATH):
             print("⚙️ Criando banco e carregando base inicial...")
-            carregar_todos_documentos("backend/dados")
+            carregar_todos_documentos("dados")
         else:
             conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
@@ -46,7 +46,7 @@ async def startup_event():
             conn.close()
             if total == 0:
                 print("📚 Banco vazio — carregando documentos...")
-                carregar_todos_documentos("backend/dados")
+                carregar_todos_documentos("dados")
             else:
                 print(f"✅ Banco com {total} registros prontos!")
 
@@ -102,7 +102,7 @@ async def aprender_dashboard(background_tasks: BackgroundTasks):
     """
     Inicia aprendizado com monitoramento (para o dashboard no Hostinger).
     """
-    background_tasks.add_task(processar_documentos_com_progresso, "backend/dados", progresso_global)
+    background_tasks.add_task(processar_documentos_com_progresso, "dados", progresso_global)
     return {"status": "🚀 Iniciando aprendizado e atualização em tempo real..."}
 
 
@@ -118,7 +118,7 @@ async def aprender_tudo():
     Modo rápido (sem progresso visual) — útil para carregar manualmente via POST.
     """
     try:
-        total = carregar_todos_documentos("backend/dados")
+        total = carregar_todos_documentos("dados")
         return {"status": f"✅ {total} arquivos lidos e armazenados com sucesso."}
     except Exception as e:
         return {"status": f"❌ Erro ao aprender: {e}"}
