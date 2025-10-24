@@ -1,3 +1,3 @@
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("Babix IA Dashboard carregado - Etapa 1");
+  console.log("Babix IA (Modo Avançado) carregada com sucesso!");
 });
