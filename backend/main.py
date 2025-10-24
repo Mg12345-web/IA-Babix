@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from aprendizado import carregar_conhecimento
-from raciocinio import gerar_resposta
+from backend.aprendizado import carregar_conhecimento
+from backend.raciocinio import gerar_resposta
 
 app = FastAPI(title="Babix IA")
 
