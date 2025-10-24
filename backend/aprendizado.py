@@ -3,7 +3,7 @@ import sqlite3
 from PyPDF2 import PdfReader
 
 DB_PATH = "backend/db/conhecimento.db"
-PDF_PATH = "backend/dados/MBVT20222.pdf"  # ajuste o nome se estiver diferente
+PDF_PATH = "backend/dados/mbft.pdf"  
 
 # Variável global para conhecimento em memória
 conhecimento_base = []
