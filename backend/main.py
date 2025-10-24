@@ -1,13 +1,20 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from backend.aprendizado import carregar_conhecimento
-from backend.raciocinio import gerar_resposta
+from backend.aprendizado import (
+    carregar_todos_documentos,
+    processar_documentos_com_progresso,
+    progresso_global
+)
+from backend.raciocinio import gerar_resposta, gerar_resposta_observacao
 from backend.indexador import indexar_mbft
-from backend.raciocinio import gerar_resposta_observacao
 import os
+import sqlite3
 
 app = FastAPI(title="Babix IA")
 
+# =====================================================
+# 🔹 Configuração de CORS
+# =====================================================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,7 +23,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔹 Evento executado quando o servidor inicia
+# =====================================================
+# 🔹 Evento de inicialização
+# =====================================================
 @app.on_event("startup")
 async def startup_event():
     print("\n==============================")
@@ -24,29 +33,36 @@ async def startup_event():
     print("==============================")
 
     try:
-        # 🧠 Carregar conhecimento do MBFT
-        print("🔄 Carregando conhecimento do MBFT...")
-        carregar_conhecimento("dados/mbft.pdf")
-        print("✅ MBFT carregado na memória!")
-
-        # 📚 Evita reindexação se o banco já contiver fichas
         from backend.aprendizado import DB_PATH
-        if os.path.exists(DB_PATH):
-            import sqlite3
+
+        if not os.path.exists(DB_PATH):
+            print("⚙️ Criando banco e carregando base inicial...")
+            carregar_todos_documentos("backend/dados")
+        else:
             conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM fichas WHERE codigo != 'MBFT-GERAL'")
-            total_fichas = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM fichas")
+            total = cur.fetchone()[0]
             conn.close()
-
-            if total_fichas > 100:
-                print(f"📑 {total_fichas} fichas já indexadas — pulando reindexação.")
+            if total == 0:
+                print("📚 Banco vazio — carregando documentos...")
+                carregar_todos_documentos("backend/dados")
             else:
-                print("🔍 Iniciando indexação automática das fichas...")
-                indexar_mbft()
-        else:
-            print("⚠️ Banco não encontrado, indexando do zero...")
+                print(f"✅ Banco com {total} registros prontos!")
+
+        # Reindexa MBFT se necessário
+        print("🔍 Verificando fichas do MBFT...")
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM fichas WHERE codigo != 'MBFT-GERAL'")
+        total_fichas = cur.fetchone()[0]
+        conn.close()
+
+        if total_fichas < 50:
+            print("📑 Reindexando fichas do MBFT...")
             indexar_mbft()
+        else:
+            print(f"📋 {total_fichas} fichas já indexadas — OK.")
 
         print("✅ Sistema Babix IA pronto para uso!")
         print("==============================\n")
@@ -55,23 +71,66 @@ async def startup_event():
         print(f"❌ Erro ao iniciar Babix IA: {e}")
         print("==============================\n")
 
+# =====================================================
+# 🔹 Endpoints principais
+# =====================================================
 
-# 🔹 Endpoint principal de chat
 @app.post("/api/chat")
 async def chat(request: Request):
+    """Chat principal com Babix IA"""
     data = await request.json()
     pergunta = data.get("mensagem", "")
     resposta = gerar_resposta(pergunta)
     return {"resposta": resposta}
 
+
 @app.post("/api/analisar")
 async def analisar_observacao(request: Request):
+    """Análise técnica de campo observações"""
     data = await request.json()
     texto = data.get("observacao", "")
     resposta = gerar_resposta_observacao(texto)
     return {"resposta": resposta}
 
-# 🔹 Endpoint de status (teste rápido)
+
+# =====================================================
+# 🧩 Endpoints do Painel de Aprendizado (Dashboard)
+# =====================================================
+
+@app.post("/api/aprender_dashboard")
+async def aprender_dashboard(background_tasks: BackgroundTasks):
+    """
+    Inicia aprendizado com monitoramento (para o dashboard no Hostinger).
+    """
+    background_tasks.add_task(processar_documentos_com_progresso, "backend/dados", progresso_global)
+    return {"status": "🚀 Iniciando aprendizado e atualização em tempo real..."}
+
+
+@app.get("/api/progresso")
+async def progresso_leitura():
+    """Retorna o progresso atual em tempo real."""
+    return progresso_global
+
+
+@app.post("/api/aprender")
+async def aprender_tudo():
+    """
+    Modo rápido (sem progresso visual) — útil para carregar manualmente via POST.
+    """
+    try:
+        total = carregar_todos_documentos("backend/dados")
+        return {"status": f"✅ {total} arquivos lidos e armazenados com sucesso."}
+    except Exception as e:
+        return {"status": f"❌ Erro ao aprender: {e}"}
+
+
+# =====================================================
+# 🔹 Endpoint de status geral
+# =====================================================
 @app.get("/")
 async def root():
-    return {"status": "✅ Babix IA ativa e com MBFT carregado!"}
+    return {
+        "status": "✅ Babix IA ativa!",
+        "descricao": "Sistema de aprendizado contínuo e análise de infrações",
+        "modulos": ["chat", "analisar", "aprender", "dashboard"]
+    }
