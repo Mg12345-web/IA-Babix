@@ -6,10 +6,5 @@ Pillow>=11.0.0
 python-multipart==0.0.9
 sqlite-utils==3.36
 starlette==0.38.2
-rapidfuzz==3.9.3
-torch
-transformers
-sentence-transformers
-faiss-cpu
-numpy
-scikit-learn
+sentence-transformers==3.1.1
+numpy==1.26.4
