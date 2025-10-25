@@ -1,60 +1,27 @@
-# ======================================================
-# 🧠 Babix IA — IA Autônoma com Ollama (versão CPU-only)
-# Compatível com Railway - Outubro/2025
-# ======================================================
+# ------------------------------------------------------------
+# 🧠 Babix IA — Ambiente de produção (sem Ollama)
+# ------------------------------------------------------------
 
-FROM ubuntu:22.04
+FROM python:3.11-slim
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-# -------------------------
-# 🔹 Instala dependências
-# -------------------------
+# Instala dependências básicas
 RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    python3 \
-    python3-pip \
-    sqlite3 \
+    build-essential \
+    libsqlite3-dev \
     git \
-    ca-certificates \
-    tar \
     && rm -rf /var/lib/apt/lists/*
 
-# -------------------------
-# 🔹 Instala Ollama (CPU-only)
-# -------------------------
-RUN wget https://github.com/ollama/ollama/releases/download/v0.3.13/ollama-linux-amd64.tgz && \
-    tar -xvzf ollama-linux-amd64.tgz && \
-    mv ./bin/ollama /usr/local/bin/ && \
-    chmod +x /usr/local/bin/ollama && \
-    rm -rf ollama-linux-amd64.tgz ./bin ./lib
-
-# -------------------------
-# 🔹 Define diretório de trabalho
-# -------------------------
+# Define diretório de trabalho
 WORKDIR /app
 
-# Copia todos os arquivos do projeto
-COPY . .
+# Copia os arquivos
+COPY . /app
 
-# -------------------------
-# 🔹 Instala dependências Python
-# -------------------------
+# Instala dependências Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# -------------------------
-# 🔹 Baixa modelo local (modo seguro)
-# -------------------------
-RUN ollama pull phi3 || true
+# Porta padrão da FastAPI
+EXPOSE 8000
 
-# -------------------------
-# 🔹 Define variáveis e porta
-# -------------------------
-ENV PORT=8080
-EXPOSE 8080
-
-# -------------------------
-# 🔹 Comando de inicialização
-# -------------------------
-CMD ["bash", "start.sh"]
+# Comando de inicialização
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
