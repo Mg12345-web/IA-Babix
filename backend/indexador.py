@@ -3,12 +3,19 @@ import sqlite3
 import hashlib
 from pathlib import Path
 from difflib import SequenceMatcher
+from sentence_transformers import SentenceTransformer
+import numpy as np
 
 # ============================================================
 # 🔹 Caminhos e configuração
 # ============================================================
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "backend" / "db" / "conhecimento.db"
+
+# Modelo global de embeddings
+print("🧠 Carregando modelo de embeddings...")
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
+print("✅ Modelo de embeddings carregado.\n")
 
 # ============================================================
 # 🔹 Utilitários
@@ -17,10 +24,6 @@ DB_PATH = BASE_DIR / "backend" / "db" / "conhecimento.db"
 def _conn():
     """Abre conexão com o banco"""
     return sqlite3.connect(str(DB_PATH))
-
-def _sim(a: str, b: str) -> float:
-    """Calcula similaridade textual simples"""
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 def _hash_texto(texto: str) -> str:
     """Gera hash único para cada ficha e evita duplicação."""
@@ -54,14 +57,10 @@ def limpar_fichas_antigas():
 # ============================================================
 
 def dividir_em_blocos(texto: str, nome_doc: str) -> list:
-    """
-    Divide o texto em blocos de sentido (artigos, seções ou fichas MBFT).
-    Retorna lista de tuplas (codigo, conteudo).
-    """
+    """Divide o texto em blocos temáticos (por artigo, seção ou código MBFT)."""
     texto = texto.replace("\r", "")
     texto = re.sub(r"\n{2,}", "\n", texto)
 
-    # Detecta se é MBFT (códigos 123-45)
     if "MBFT" in nome_doc.upper() or re.search(r"\d{3}-\d{2}", texto):
         padrao = re.compile(
             r"(?P<codigo>\d{3}-\d{2})[\s–-]+(?P<conteudo>.*?)(?=\n\d{3}-\d{2}[\s–-]|$)",
@@ -70,7 +69,6 @@ def dividir_em_blocos(texto: str, nome_doc: str) -> list:
         fichas = padrao.findall(texto)
         blocos = [(codigo.strip(), conteudo.strip()) for codigo, conteudo in fichas]
     else:
-        # Divide por artigos, seções, títulos ou blocos longos
         padrao = re.compile(
             r"(?P<titulo>(Art\. ?\d+|SEÇÃO|TÍTULO|CAPÍTULO).+?)(?=(?:Art\. ?\d+|SEÇÃO|TÍTULO|CAPÍTULO|$))",
             re.S | re.I
@@ -89,7 +87,7 @@ def dividir_em_blocos(texto: str, nome_doc: str) -> list:
 # ============================================================
 
 def salvar_blocos(doc_id: int, nome_doc: str, blocos: list):
-    """Salva cada bloco como ficha individual no banco."""
+    """Salva cada bloco como ficha individual e gera embeddings."""
     if not blocos:
         print(f"⚠️ Nenhum bloco detectado em {nome_doc}.")
         return
@@ -100,12 +98,18 @@ def salvar_blocos(doc_id: int, nome_doc: str, blocos: list):
 
         for codigo, conteudo in blocos:
             resumo = _resumir(conteudo)
-            cur.execute("""
-                INSERT OR REPLACE INTO fichas (codigo, titulo, resumo, conteudo, documento_id)
-                VALUES (?, ?, ?, ?, ?)
-            """, (codigo, nome_doc, resumo, conteudo, doc_id))
-            count += 1
+            hash_id = _hash_texto(conteudo)
+            
+            # Gera embedding semântico (vetor numérico)
+            embedding = embedder.encode(conteudo)
+            embedding_bytes = np.array(embedding, dtype=np.float32).tobytes()
 
+            cur.execute("""
+                INSERT OR REPLACE INTO fichas (codigo, titulo, resumo, conteudo, documento_id, hash, embedding)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (codigo, nome_doc, resumo, conteudo, doc_id, hash_id, embedding_bytes))
+
+            count += 1
             if count % 50 == 0:
                 print(f"📄 {count} blocos processados de {nome_doc}...")
 
@@ -118,10 +122,7 @@ def salvar_blocos(doc_id: int, nome_doc: str, blocos: list):
 # ============================================================
 
 def indexar_mbft():
-    """
-    Indexa todos os documentos no banco (não apenas o MBFT),
-    criando fichas por blocos temáticos.
-    """
+    """Indexa todos os documentos no banco e gera embeddings vetoriais."""
     limpar_fichas_antigas()
     documentos = carregar_documentos()
 
