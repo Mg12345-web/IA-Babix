@@ -157,7 +157,7 @@ def processar_documentos_com_progresso(pasta_base, progresso):
 # 🔹 Modo Direto (sem dashboard)
 # ======================================================
 
-def carregar_todos_documentos(pasta_base="backend/dados"):
+def carregar_todos_documentos(pasta_base="dados"):
     """Lê e indexa todos os documentos da pasta."""
     inicializar_db()
     embedder = SentenceTransformer("all-MiniLM-L6-v2")
