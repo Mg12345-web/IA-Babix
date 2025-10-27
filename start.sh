@@ -16,6 +16,10 @@ if ! ollama list | grep -q "phi3"; then
   ollama pull phi3
 fi
 
+# Executa o inicializador da Babix (cria banco e lê PDFs)
+echo "🧠 Preparando banco e aprendizado inicial..."
+python3 iniciar_babix.py || echo "⚠️ Erro ao inicializar Babix, continuando..."
+
 # Inicia o servidor FastAPI
 echo "✅ Iniciando servidor FastAPI..."
 uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8080}
