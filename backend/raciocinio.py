@@ -1,42 +1,30 @@
+import os
 import sqlite3
-import torch
 from sentence_transformers import SentenceTransformer, util
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from openai import OpenAI
 
 # Caminho do banco
 DB_PATH = "backend/db/conhecimento.db"
 
-print("🧠 Carregando modelos de linguagem...")
+print("🧠 Iniciando Babix Raciocínio com GPT-4o-mini...")
 
-# Embeddings (leve e rápido)
+# Modelo de embeddings leve e rápido
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Modelo de raciocínio (TinyLlama é pesado para Railway — use DistilGPT2)
-try:
-    tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
-    model = AutoModelForCausalLM.from_pretrained("distilgpt2")
-except Exception as e:
-    print(f"⚠️ Falha ao carregar modelo principal: {e}")
-    model, tokenizer = None, None
+# Cliente OpenAI (usa variável de ambiente no Railway)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-try:
-    if model:
-        model.to(device)
-except Exception:
-    print("⚠️ Rodando apenas em CPU.")
-
-print("✅ Modelos carregados com sucesso!\n")
-
+print("✅ Babix Raciocínio inicializado com sucesso!\n")
 
 # ============================================================
 # 🔹 Consulta semântica ao banco
 # ============================================================
 def consultar_base_semantica(pergunta: str, top_k: int = 3) -> str:
+    """Busca os textos mais relevantes no banco local (semântico)."""
     try:
         conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
-        cur.execute("SELECT conteudo FROM fichas LIMIT 200")
+        cur.execute("SELECT conteudo FROM fichas LIMIT 300")
         textos = [row[0] for row in cur.fetchall()]
         conn.close()
 
@@ -47,24 +35,33 @@ def consultar_base_semantica(pergunta: str, top_k: int = 3) -> str:
         emb_textos = embedder.encode(textos, batch_size=16, convert_to_tensor=True)
         resultados = util.semantic_search(emb_pergunta, emb_textos, top_k=top_k)
         contexto = "\n\n".join([textos[r["corpus_id"]] for r in resultados[0]])
-        return contexto.strip()
 
+        return contexto.strip()
     except Exception as e:
         return f"❌ Erro ao consultar base semântica: {e}"
 
-
 # ============================================================
-# 🔹 Geração de resposta
+# 🔹 Geração de resposta (usando GPT)
 # ============================================================
 def gerar_resposta(pergunta: str) -> str:
+    """Gera a resposta final usando contexto local + GPT."""
     contexto = consultar_base_semantica(pergunta)
 
     if not contexto or contexto.startswith(("⚠️", "❌")):
         return contexto
 
+    # Prompt antialucinação
     prompt = f"""
-Você é a Babix IA, assistente especialista em Direito de Trânsito.
-Responda de forma objetiva e cite leis, artigos ou resoluções.
+Você é a Babix IA, uma assistente especialista em legislação de trânsito.
+
+Use APENAS o conteúdo do contexto abaixo para responder.
+Se a resposta não estiver no contexto, diga exatamente:
+"⚠️ A informação solicitada não está presente na base de conhecimento da Babix IA."
+
+Regras:
+1️⃣ Nunca invente.
+2️⃣ Cite sempre a base legal (CTB, Resoluções CONTRAN, MBFT etc.).
+3️⃣ Seja objetiva, técnica e com linguagem jurídica.
 
 📘 Contexto:
 {contexto}
@@ -72,17 +69,23 @@ Responda de forma objetiva e cite leis, artigos ou resoluções.
 ❓ Pergunta:
 {pergunta}
 
-🧠 Resposta:
+Responda no formato:
+📘 Base legal:
+🧩 Explicação:
+📎 Fonte:
 """
 
-    if not model or not tokenizer:
-        return "⚠️ O modelo de raciocínio ainda não foi inicializado corretamente."
-
     try:
-        inputs = tokenizer(prompt, return_tensors="pt").to(device)
-        outputs = model.generate(**inputs, max_new_tokens=200, temperature=0.7, do_sample=True)
-        resposta = tokenizer.decode(outputs[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
-        resposta = resposta.split("🧠 Resposta:")[-1].strip()
-        return resposta or "⚠️ Nenhuma resposta gerada."
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            top_p=0.8,
+            max_tokens=600
+        )
+
+        resposta = response.choices[0].message.content.strip()
+        return resposta
+
     except Exception as e:
-        return f"⚠️ Erro ao gerar resposta: {e}"
+        return f"❌ Erro ao gerar resposta via GPT: {e}"
