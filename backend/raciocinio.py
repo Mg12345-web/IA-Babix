@@ -81,7 +81,7 @@ Responda de forma objetiva e cite leis, artigos ou resoluções.
     try:
         inputs = tokenizer(prompt, return_tensors="pt").to(device)
         outputs = model.generate(**inputs, max_new_tokens=200, temperature=0.7, do_sample=True)
-        resposta = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        resposta = tokenizer.decode(outputs[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
         resposta = resposta.split("🧠 Resposta:")[-1].strip()
         return resposta or "⚠️ Nenhuma resposta gerada."
     except Exception as e:
