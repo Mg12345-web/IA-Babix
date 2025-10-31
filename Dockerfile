@@ -14,14 +14,14 @@ RUN apt-get update && apt-get install -y \
 # Define diretório de trabalho
 WORKDIR /app
 
-# Copia os arquivos
+# Copia todos os arquivos do projeto
 COPY . /app
 
 # Instala dependências Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Porta padrão da FastAPI
-EXPOSE 8000
+# Expõe a porta usada pela aplicação
+EXPOSE 8080
 
-# Comando de inicialização
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Comando de inicialização (executado via Procfile)
+ENTRYPOINT ["bash", "start.sh"]
