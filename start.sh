@@ -5,10 +5,10 @@ echo "=============================="
 echo "🚀 Iniciando Babix IA (modo produção, sem Ollama)..."
 echo "=============================="
 
-# Inicializa o banco e aprendizado básico
+# Inicia o aprendizado em segundo plano (não bloqueia o container)
 if [ -f "backend/aprendizado.py" ]; then
-  echo "🧠 Preparando banco e aprendizado inicial..."
-  python3 backend/aprendizado.py || echo "⚠️ Erro ao inicializar aprendizado (prosseguindo mesmo assim)."
+  echo "🧠 Inicializando aprendizado em background..."
+  python3 backend/aprendizado.py &
 fi
 
 # Inicia o servidor FastAPI
