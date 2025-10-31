@@ -13,4 +13,4 @@ fi
 
 # Inicia o servidor FastAPI
 echo "✅ Iniciando servidor FastAPI..."
-exec uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8080}
+exec python3 -m uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8080} --timeout-keep-alive 75
