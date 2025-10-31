@@ -10,11 +10,12 @@ from backend.raciocinio import gerar_resposta
 from backend.indexador import indexar_mbft
 import os
 import sqlite3
+import threading
 
 app = FastAPI(title="Babix IA")
 
 # =====================================================
-# 🔹 Configuração de CORS
+# 🔹 Configuração de CORS (permite integração com Hostinger)
 # =====================================================
 app.add_middleware(
     CORSMiddleware,
@@ -25,7 +26,7 @@ app.add_middleware(
 )
 
 # =====================================================
-# 🔹 Evento de inicialização
+# 🔹 Inicialização assíncrona (evita travar o Railway)
 # =====================================================
 @app.on_event("startup")
 async def startup_event():
@@ -33,46 +34,50 @@ async def startup_event():
     print("🚀 Inicializando Babix IA...")
     print("==============================")
 
-    try:
-        # Cria pasta e banco, se necessário
-        os.makedirs("backend/db", exist_ok=True)
+    def inicializar_background():
+        """Executa toda a rotina de carregamento sem travar o servidor"""
+        try:
+            os.makedirs("backend/db", exist_ok=True)
 
-        if not os.path.exists(DB_PATH):
-            print("⚙️ Criando banco e carregando base inicial...")
-            carregar_todos_documentos("dados")
-        else:
+            if not os.path.exists(DB_PATH):
+                print("⚙️ Criando banco e carregando base inicial...")
+                carregar_todos_documentos("backend/dados")
+            else:
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM fichas")
+                total = cur.fetchone()[0]
+                conn.close()
+
+                if total == 0:
+                    print("📚 Banco vazio — carregando documentos...")
+                    carregar_todos_documentos("backend/dados")
+                else:
+                    print(f"✅ Banco com {total} registros prontos!")
+
+            # Reindexa MBFT se necessário
+            print("🔍 Verificando fichas do MBFT...")
             conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM fichas")
-            total = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM fichas WHERE codigo != 'MBFT-GERAL'")
+            total_fichas = cur.fetchone()[0]
             conn.close()
 
-            if total == 0:
-                print("📚 Banco vazio — carregando documentos...")
-                carregar_todos_documentos("dados")
+            if total_fichas < 50:
+                print("📑 Reindexando fichas do MBFT...")
+                indexar_mbft()
             else:
-                print(f"✅ Banco com {total} registros prontos!")
+                print(f"📋 {total_fichas} fichas já indexadas — OK.")
 
-        # Reindexa MBFT se necessário
-        print("🔍 Verificando fichas do MBFT...")
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM fichas WHERE codigo != 'MBFT-GERAL'")
-        total_fichas = cur.fetchone()[0]
-        conn.close()
+            print("✅ Sistema Babix IA pronto para uso!")
+            print("==============================\n")
 
-        if total_fichas < 50:
-            print("📑 Reindexando fichas do MBFT...")
-            indexar_mbft()
-        else:
-            print(f"📋 {total_fichas} fichas já indexadas — OK.")
+        except Exception as e:
+            print(f"❌ Erro ao iniciar Babix IA: {e}")
+            print("==============================\n")
 
-        print("✅ Sistema Babix IA pronto para uso!")
-        print("==============================\n")
-
-    except Exception as e:
-        print(f"❌ Erro ao iniciar Babix IA: {e}")
-        print("==============================\n")
+    # Roda em segundo plano (sem bloquear o Railway)
+    threading.Thread(target=inicializar_background, daemon=True).start()
 
 # =====================================================
 # 🔹 Endpoints principais
@@ -113,7 +118,7 @@ async def progresso_leitura():
 async def aprender_tudo():
     """Modo rápido (sem progresso visual) — útil para carregamento manual."""
     try:
-        total = carregar_todos_documentos("dados")
+        total = carregar_todos_documentos("backend/dados")
         return {"status": f"✅ {total} arquivos lidos e armazenados com sucesso."}
     except Exception as e:
         return {"status": f"❌ Erro ao aprender: {e}"}
