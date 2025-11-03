@@ -90,15 +90,12 @@ async def startup_event():
 # 🔹 Endpoints principais
 # =====================================================
 
+from backend.raciocinio import gerar_resposta
+
 @app.post("/api/chat")
 async def chat(request: Request):
-    """Chat principal com Babix IA"""
-    data = await request.json()
-    pergunta = data.get("mensagem", "").strip()
-
-    if not pergunta:
-        return {"resposta": "⚠️ Nenhuma pergunta recebida."}
-
+    dados = await request.json()
+    pergunta = dados.get("mensagem", "")
     resposta = gerar_resposta(pergunta)
     return {"resposta": resposta}
 
