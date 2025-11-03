@@ -208,5 +208,16 @@ def carregar_todos_documentos(pasta_base="dados"):
 # 🔹 Execução manual
 # ======================================================
 
+def resetar_banco():
+    """Apaga o banco e reindexa todos os documentos da pasta /dados."""
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
+        print("🧹 Banco de conhecimento removido com sucesso!")
+
+    print("⚙️ Criando novo banco e reiniciando aprendizado...")
+    inicializar_db()
+    carregar_todos_documentos("dados")
+    print("🏁 Reindexação completa — novo banco criado e atualizado!")
+
 if __name__ == "__main__":
     carregar_todos_documentos("dados")
