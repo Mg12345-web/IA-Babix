@@ -15,7 +15,7 @@ import threading
 app = FastAPI(title="Babix IA")
 
 # =====================================================
-# 🔹 Configuração de CORS (permite integração com Hostinger)
+# 🔹 CORS — permite integração com o frontend (Hostinger)
 # =====================================================
 app.add_middleware(
     CORSMiddleware,
@@ -26,7 +26,7 @@ app.add_middleware(
 )
 
 # =====================================================
-# 🔹 Inicialização assíncrona (evita travar o Railway)
+# 🔹 Inicialização assíncrona (evita travar Railway)
 # =====================================================
 @app.on_event("startup")
 async def startup_event():
@@ -35,28 +35,34 @@ async def startup_event():
     print("==============================")
 
     def inicializar_background():
-        """Executa toda a rotina de carregamento sem travar o servidor"""
+        """Executa toda a rotina de preparação de forma segura"""
         try:
             os.makedirs("backend/db", exist_ok=True)
 
-            # ✅ Corrigido: caminho da pasta de dados (agora raiz)
+            # ✅ Verifica se o banco já existe e está populado
+            precisa_carregar = False
             if not os.path.exists(DB_PATH):
-                print("⚙️ Criando banco e carregando base inicial...")
+                precisa_carregar = True
+            else:
+                try:
+                    conn = sqlite3.connect(DB_PATH)
+                    cur = conn.cursor()
+                    cur.execute("SELECT COUNT(*) FROM fichas")
+                    total = cur.fetchone()[0]
+                    conn.close()
+                    if total == 0:
+                        precisa_carregar = True
+                except Exception:
+                    precisa_carregar = True
+
+            # 🔹 Só carrega a pasta /dados se necessário
+            if precisa_carregar:
+                print("📚 Banco vazio — iniciando aprendizado inicial da pasta /dados...")
                 carregar_todos_documentos("dados")
             else:
-                conn = sqlite3.connect(DB_PATH)
-                cur = conn.cursor()
-                cur.execute("SELECT COUNT(*) FROM fichas")
-                total = cur.fetchone()[0]
-                conn.close()
+                print("✅ Banco já existente — pulando carregamento inicial.")
 
-                if total == 0:
-                    print("📚 Banco vazio — carregando documentos...")
-                    carregar_todos_documentos("dados")
-                else:
-                    print(f"✅ Banco com {total} registros prontos!")
-
-            # Reindexa MBFT se necessário
+            # 🔹 Reindexa MBFT apenas se necessário
             print("🔍 Verificando fichas do MBFT...")
             conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
@@ -77,7 +83,7 @@ async def startup_event():
             print(f"❌ Erro ao iniciar Babix IA: {e}")
             print("==============================\n")
 
-    # Roda em segundo plano (sem bloquear o Railway)
+    # Roda em segundo plano (não trava o Railway)
     threading.Thread(target=inicializar_background, daemon=True).start()
 
 # =====================================================
@@ -96,15 +102,14 @@ async def chat(request: Request):
     resposta = gerar_resposta(pergunta)
     return {"resposta": resposta}
 
-
 # =====================================================
-# 🧩 Endpoints do Painel de Aprendizado (Dashboard)
+# 🧩 Aprendizado manual e dashboard
 # =====================================================
 
 @app.post("/api/aprender_dashboard")
 async def aprender_dashboard(background_tasks: BackgroundTasks):
     """Inicia aprendizado com monitoramento (para o dashboard)."""
-    pasta = "dados"  # ✅ Corrigido
+    pasta = "dados"  # ✅ Raiz
     background_tasks.add_task(processar_documentos_com_progresso, pasta, progresso_global)
     return {"status": f"🚀 Iniciando aprendizado e atualização em tempo real a partir de {pasta}..."}
 
@@ -119,14 +124,13 @@ async def progresso_leitura():
 async def aprender_tudo():
     """Modo rápido (sem progresso visual) — útil para carregamento manual."""
     try:
-        total = carregar_todos_documentos("dados")  # ✅ Corrigido
+        total = carregar_todos_documentos("dados")  # ✅ Raiz
         return {"status": f"✅ {total} arquivos lidos e armazenados com sucesso."}
     except Exception as e:
         return {"status": f"❌ Erro ao aprender: {e}"}
 
-
 # =====================================================
-# 🔹 Endpoint de status geral
+# 🔹 Status geral
 # =====================================================
 @app.get("/")
 async def root():
