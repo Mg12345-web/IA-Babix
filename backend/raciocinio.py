@@ -1,91 +1,69 @@
+# backend/raciocinio.py
+
 import os
 import sqlite3
 from sentence_transformers import SentenceTransformer, util
 from openai import OpenAI
 
-# Caminho do banco
-DB_PATH = "backend/db/conhecimento.db"
-
-print("🧠 Iniciando Babix Raciocínio com GPT-4o-mini...")
-
-# Modelo de embeddings leve e rápido
+# Inicializa modelos e API
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
-
-# Cliente OpenAI (usa variável de ambiente no Railway)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-print("✅ Babix Raciocínio inicializado com sucesso!\n")
+DB_PATH = "backend/db/conhecimento.db"
 
-# ============================================================
-# 🔹 Consulta semântica ao banco
-# ============================================================
-def consultar_base_semantica(pergunta: str, top_k: int = 3) -> str:
-    """Busca os textos mais relevantes no banco local (semântico)."""
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("SELECT conteudo FROM fichas LIMIT 300")
-        textos = [row[0] for row in cur.fetchall()]
-        conn.close()
+def buscar_contexto(pergunta, limite=3):
+    """Busca os trechos mais semelhantes à pergunta"""
+    if not os.path.exists(DB_PATH):
+        return "⚠️ Base de conhecimento não encontrada."
 
-        if not textos:
-            return "⚠️ Base de conhecimento vazia."
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT texto, embedding FROM conhecimento")
+    registros = cur.fetchall()
+    conn.close()
 
-        emb_pergunta = embedder.encode(pergunta, convert_to_tensor=True)
-        emb_textos = embedder.encode(textos, batch_size=16, convert_to_tensor=True)
-        resultados = util.semantic_search(emb_pergunta, emb_textos, top_k=top_k)
-        contexto = "\n\n".join([textos[r["corpus_id"]] for r in resultados[0]])
+    if not registros:
+        return "⚠️ Nenhum conhecimento indexado ainda."
 
-        return contexto.strip()
-    except Exception as e:
-        return f"❌ Erro ao consultar base semântica: {e}"
+    # Calcula embeddings e similaridade
+    pergunta_emb = embedder.encode(pergunta, convert_to_tensor=True)
+    textos, scores = [], []
 
-# ============================================================
-# 🔹 Geração de resposta (usando GPT)
-# ============================================================
-def gerar_resposta(pergunta: str) -> str:
-    """Gera a resposta final usando contexto local + GPT."""
-    contexto = consultar_base_semantica(pergunta)
+    for texto, emb_blob in registros:
+        try:
+            emb = eval(emb_blob) if isinstance(emb_blob, str) else emb_blob
+            score = util.pytorch_cos_sim(pergunta_emb, emb)[0][0].item()
+            textos.append((score, texto))
+        except:
+            continue
 
-    if not contexto or contexto.startswith(("⚠️", "❌")):
-        return contexto
+    textos = sorted(textos, reverse=True)[:limite]
+    contexto = "\n\n".join([t[1] for t in textos])
+    return contexto or "⚠️ Nenhum contexto relevante encontrado."
 
-    # Prompt antialucinação
+def gerar_resposta(pergunta):
+    """Raciocina usando GPT-5, restrito à base local"""
+    contexto = buscar_contexto(pergunta)
+
     prompt = f"""
-Você é a Babix IA, uma assistente especialista em legislação de trânsito.
+Você é a Babix IA, uma assistente jurídica especializada em direito de trânsito.
+Use APENAS as informações do contexto abaixo para responder. 
+Se algo não estiver no contexto, diga claramente que não sabe.
 
-Use APENAS o conteúdo do contexto abaixo para responder.
-Se a resposta não estiver no contexto, diga exatamente:
-"⚠️ A informação solicitada não está presente na base de conhecimento da Babix IA."
-
-Regras:
-1️⃣ Nunca invente.
-2️⃣ Cite sempre a base legal (CTB, Resoluções CONTRAN, MBFT etc.).
-3️⃣ Seja objetiva, técnica e com linguagem jurídica.
-
-📘 Contexto:
+📚 Contexto extraído da base:
 {contexto}
 
-❓ Pergunta:
+❓ Pergunta do usuário:
 {pergunta}
 
-Responda no formato:
-📘 Base legal:
-🧩 Explicação:
-📎 Fonte:
+💬 Resposta:
 """
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            top_p=0.8,
-            max_tokens=600
-        )
+    resposta = client.chat.completions.create(
+        model="gpt-5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.4,
+        max_tokens=400,
+    )
 
-        resposta = response.choices[0].message.content.strip()
-        return resposta
-
-    except Exception as e:
-        return f"❌ Erro ao gerar resposta via GPT: {e}"
+    return resposta.choices[0].message.content.strip()
