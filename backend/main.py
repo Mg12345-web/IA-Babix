@@ -39,9 +39,10 @@ async def startup_event():
         try:
             os.makedirs("backend/db", exist_ok=True)
 
+            # ✅ Corrigido: caminho da pasta de dados (agora raiz)
             if not os.path.exists(DB_PATH):
                 print("⚙️ Criando banco e carregando base inicial...")
-                carregar_todos_documentos("backend/dados")
+                carregar_todos_documentos("dados")
             else:
                 conn = sqlite3.connect(DB_PATH)
                 cur = conn.cursor()
@@ -51,7 +52,7 @@ async def startup_event():
 
                 if total == 0:
                     print("📚 Banco vazio — carregando documentos...")
-                    carregar_todos_documentos("backend/dados")
+                    carregar_todos_documentos("dados")
                 else:
                     print(f"✅ Banco com {total} registros prontos!")
 
@@ -103,7 +104,7 @@ async def chat(request: Request):
 @app.post("/api/aprender_dashboard")
 async def aprender_dashboard(background_tasks: BackgroundTasks):
     """Inicia aprendizado com monitoramento (para o dashboard)."""
-    pasta = "backend/dados"
+    pasta = "dados"  # ✅ Corrigido
     background_tasks.add_task(processar_documentos_com_progresso, pasta, progresso_global)
     return {"status": f"🚀 Iniciando aprendizado e atualização em tempo real a partir de {pasta}..."}
 
@@ -118,7 +119,7 @@ async def progresso_leitura():
 async def aprender_tudo():
     """Modo rápido (sem progresso visual) — útil para carregamento manual."""
     try:
-        total = carregar_todos_documentos("backend/dados")
+        total = carregar_todos_documentos("dados")  # ✅ Corrigido
         return {"status": f"✅ {total} arquivos lidos e armazenados com sucesso."}
     except Exception as e:
         return {"status": f"❌ Erro ao aprender: {e}"}
