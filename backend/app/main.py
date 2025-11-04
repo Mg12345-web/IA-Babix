@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 
-from .routers import health, ingest, chat
+from .routers import health, ingest, chat, debug
 
 
 def create_app() -> FastAPI:
@@ -13,6 +13,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(ingest.router, prefix="/api", tags=["ingest"])
     app.include_router(chat.router, prefix="/api", tags=["chat"])
+    app.include_router(debug.router, prefix="/api", tags=["debug"])  # ✅ adicionado aqui
 
     # 🔹 Servir arquivos estáticos da pasta frontend
     frontend_path = os.path.join(os.path.dirname(__file__), "../../frontend")
