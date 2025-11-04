@@ -14,3 +14,8 @@ openai==1.51.0
 
 # Compatibilidade geral
 httpx==0.27.2
+google-api-python-client
+google-auth
+google-auth-httplib2
+google-auth-oauthlib
+PyPDF2
