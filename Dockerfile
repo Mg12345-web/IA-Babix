@@ -15,8 +15,8 @@ COPY backend ./backend
 COPY dados ./dados
 COPY .env.example ./.env.example
 
-# porta do uvicorn
+# porta exposta (Railway define dinamicamente)
 EXPOSE 8000
 
-# comando padrão (Procfile também define em plataformas que usam)
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# comando de inicialização com variável de ambiente dinâmica
+CMD ["sh", "-c", "uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
