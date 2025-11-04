@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.drive_sync import baixar_arquivos_drive
+from ..drive_sync import baixar_arquivos_drive
 
 router = APIRouter()
 
