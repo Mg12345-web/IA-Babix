@@ -1,11 +1,32 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+
 from .routers import health, ingest, chat
 
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Babix API", version="0.2.0")
+    app = FastAPI(title="Babix API", version="0.3.0")
+
+    # 🔹 Rotas principais
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(ingest.router, prefix="/api", tags=["ingest"])
     app.include_router(chat.router, prefix="/api", tags=["chat"])
+
+    # 🔹 Servir arquivos estáticos da pasta frontend
+    frontend_path = os.path.join(os.path.dirname(__file__), "../../frontend")
+    app.mount("/frontend", StaticFiles(directory=frontend_path), name="frontend")
+
+    # 🔹 Rota padrão: redireciona para o painel de teste
+    @app.get("/")
+    async def root():
+        test_file = os.path.join(frontend_path, "test.html")
+        if os.path.exists(test_file):
+            return FileResponse(test_file)
+        return {"message": "Frontend não encontrado."}
+
     return app
+
 
 app = create_app()
