@@ -13,7 +13,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(ingest.router, prefix="/api", tags=["ingest"])
     app.include_router(chat.router, prefix="/api", tags=["chat"])
-    app.include_router(debug.router, prefix="/api", tags=["debug"])  # ✅ adicionado aqui
+    app.include_router(debug.router, prefix="/api", tags=["debug"])
 
     # 🔹 Servir arquivos estáticos da pasta frontend
     frontend_path = os.path.join(os.path.dirname(__file__), "../../frontend")
