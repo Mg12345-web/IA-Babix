@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Teste da Babix API</title>
+</head>
+<body style="font-family: sans-serif; max-width:600px; margin: 50px auto;">
+  <h2>🧠 Teste da Babix API</h2>
+
+  <button onclick="ingest()">➡️ Fazer Ingestão</button>
+  <p id="ingestResult"></p>
+
+  <hr>
+
+  <textarea id="msg" rows="4" style="width:100%;" placeholder="Digite sua pergunta..."></textarea><br>
+  <button onclick="chat()">💬 Enviar para Babix</button>
+
+  <pre id="chatResult"></pre>
+
+  <script>
+    async function ingest() {
+      const res = await fetch('/api/ingest', { method: 'POST' });
+      const data = await res.json();
+      document.getElementById('ingestResult').innerText = JSON.stringify(data, null, 2);
+    }
+
+    async function chat() {
+      const message = document.getElementById('msg').value;
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      });
+      const data = await res.json();
+      document.getElementById('chatResult').innerText = JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>
