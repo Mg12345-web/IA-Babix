@@ -13,12 +13,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # copiar projeto
 COPY backend ./backend
 COPY dados ./dados
+COPY frontend ./frontend
 COPY .env.example ./.env.example
 
 # porta exposta (Railway define dinamicamente)
 EXPOSE 8000
-
-COPY frontend ./frontend
 
 # comando de inicialização com variável de ambiente dinâmica
 CMD ["sh", "-c", "uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
