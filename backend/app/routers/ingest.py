@@ -12,6 +12,7 @@ def ingest_files():
     e adiciona ao ChromaDB.
     """
     base_path = "./dados"
+    print(f"📂 Varredura iniciada em: {os.path.abspath(base_path)}")
     embedder = SentenceTransformer(EMBEDDING_MODEL)
     added_files = []
 
