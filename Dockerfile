@@ -14,11 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # copiar o projeto completo
 COPY backend ./backend
 COPY frontend ./frontend
-COPY dados ./dados
 COPY .env.example ./.env.example
 
 # garantir permissões de leitura
-RUN chmod -R 755 /app/dados
+RUN chmod -R 755 /app
 
 # expor porta
 EXPOSE 8000
