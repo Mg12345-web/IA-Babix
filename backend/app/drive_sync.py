@@ -47,49 +47,62 @@ def get_chroma():
     return client.get_or_create_collection("babix_docs")
 
 def baixar_arquivos_drive():
-    svc = get_drive_service()
+    """Função que indexa arquivos do Google Drive"""
+    try:
+        svc = get_drive_service()
 
-    results = svc.files().list(
-        q=f"'{DRIVE_FOLDER_ID}' in parents and trashed=false",
-        fields="files(id,name,mimeType,modifiedTime)"
-    ).execute()
+        results = svc.files().list(
+            q=f"'{DRIVE_FOLDER_ID}' in parents and trashed=false",
+            fields="files(id,name,mimeType,modifiedTime)"
+        ).execute()
 
-    files = results.get("files", [])
-    print(f"📂 {len(files)} arquivos encontrados no Drive.")
+        files = results.get("files", [])
+        print(f"📂 {len(files)} arquivos encontrados no Drive.")
 
-    col = get_chroma()
-    embedder = get_embedder()
+        if not files:
+            print("⚠️ Nenhum arquivo encontrado. Verifique se DRIVE_FOLDER_ID está correto.")
+            return
 
-    for f in files:
-        file_id = f["id"]
-        name = f["name"]
-        mime = f["mimeType"]
-        print(f"⬇️ Baixando: {name} ({mime})")
+        col = get_chroma()
+        embedder = get_embedder()
 
-        request = svc.files().get_media(fileId=file_id)
-        buf = io.BytesIO()
-        downloader = MediaIoBaseDownload(buf, request)
-        done = False
-        while not done:
-            _, done = downloader.next_chunk()
-        buf.seek(0)
+        for f in files:
+            file_id = f["id"]
+            name = f["name"]
+            mime = f["mimeType"]
+            print(f"⬇️ Baixando: {name} ({mime})")
 
-        tmp = f"/tmp/{name}"
-        with open(tmp, "wb") as out:
-            out.write(buf.read())
+            request = svc.files().get_media(fileId=file_id)
+            buf = io.BytesIO()
+            downloader = MediaIoBaseDownload(buf, request)
+            done = False
+            while not done:
+                _, done = downloader.next_chunk()
+            buf.seek(0)
 
-        text = extract_text(tmp, mime)
-        if not text:
-            print(f"⚠️ Ignorado (tipo não suportado ou vazio): {name}")
-            continue
+            tmp = f"/tmp/{name}"
+            with open(tmp, "wb") as out:
+                out.write(buf.read())
 
-        embedding = embedder.encode([text])[0]
-        col.add(
-            documents=[text],
-            embeddings=[embedding],
-            metadatas=[{"name": name, "mime": mime}],
-            ids=[file_id]  # evita duplicar
-        )
-        print(f"✅ Indexado: {name}")
+            text = extract_text(tmp, mime)
+            if not text:
+                print(f"⚠️ Ignorado (tipo não suportado ou vazio): {name}")
+                continue
 
-    print("✅ Ingestão concluída e persistida em", CHROMA_DIR)
+            print(f"🔄 Gerando embedding para: {name}")
+            embedding = embedder.encode([text])[0]
+            
+            col.add(
+                documents=[text],
+                embeddings=[embedding],
+                metadatas=[{"name": name, "mime": mime}],
+                ids=[file_id]  # evita duplicar
+            )
+            print(f"✅ Indexado: {name}")
+
+        print("✅ Ingestão concluída e persistida em", CHROMA_DIR)
+        
+    except Exception as e:
+        print(f"❌ Erro na ingestão: {str(e)}")
+        import traceback
+        traceback.print_exc()
