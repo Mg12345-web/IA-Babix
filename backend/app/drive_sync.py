@@ -4,8 +4,7 @@ from google.oauth2 import service_account
 from googleapiclient.http import MediaIoBaseDownload
 
 from sentence_transformers import SentenceTransformer
-from chromadb import Client
-from chromadb.config import Settings
+import chromadb
 
 # Use pasta de persistência configurável
 CHROMA_DIR = os.getenv("CHROMA_DIR", "./dados/chroma")
@@ -43,7 +42,8 @@ def extract_text(local_path, mime):
 
 def get_chroma():
     os.makedirs(CHROMA_DIR, exist_ok=True)
-    client = Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory=CHROMA_DIR))
+    # ✅ CORREÇÃO: Usa PersistentClient para evitar conflito
+    client = chromadb.PersistentClient(path=CHROMA_DIR)
     return client.get_or_create_collection("babix_docs")
 
 def baixar_arquivos_drive():
