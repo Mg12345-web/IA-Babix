@@ -1,10 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import SentenceTransformer
 import chromadb
-from chromadb.config import Settings
 import os
-import openai
+from openai import OpenAI
 
 router = APIRouter()
 
@@ -12,58 +11,117 @@ router = APIRouter()
 CHROMA_DIR = os.getenv("CHROMA_DIR", "./dados/chroma")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+# Cliente OpenAI
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-client = chromadb.Client(Settings(persist_directory=CHROMA_DIR))
-collection = client.get_or_create_collection("babix_docs")
+# Inicializar Chroma
+def get_chroma_client():
+    """Conecta ao ChromaDB persistente"""
+    return chromadb.PersistentClient(path=CHROMA_DIR)
 
-openai.api_key = OPENAI_API_KEY
+def get_embedder():
+    """Carrega modelo de embedding"""
+    return SentenceTransformer("all-MiniLM-L6-v2")
 
 class ChatRequest(BaseModel):
     message: str
 
 @router.post("/chat")
 async def chat(req: ChatRequest):
-    query = req.message.strip()
-    if not query:
-        raise HTTPException(status_code=400, detail="Mensagem vazia.")
-
-    # 🔍 Busca semântica no banco Chroma
-    results = collection.query(
-        query_texts=[query],
-        n_results=3
-    )
-
-    if not results or not results.get("documents") or not results["documents"][0]:
-        return {"response": "Nenhum conhecimento foi indexado ainda."}
-
-    contextos = "\n\n".join(results["documents"][0])
-
-    # 💬 Prompt contextualizado
-    prompt = f"""
-Você é a Babix, uma IA especializada em Direito de Trânsito brasileiro.
-Responda com base apenas no contexto abaixo (se houver), e seja clara e direta.
-
-Contexto:
-{contextos}
-
-Pergunta do usuário:
-{query}
-"""
-
+    """
+    Endpoint de chat com RAG:
+    1. Busca documentos relevantes no ChromaDB
+    2. Envia para GPT com contexto
+    3. Retorna resposta
+    """
     try:
-        completion = openai.chat.completions.create(
+        query = req.message.strip()
+        
+        if not query:
+            raise HTTPException(status_code=400, detail="Mensagem vazia.")
+        
+        # 🔍 Conectar ao ChromaDB
+        chroma_client = get_chroma_client()
+        
+        # Tentar obter a coleção existente
+        try:
+            collection = chroma_client.get_collection("babix_docs")
+        except Exception as e:
+            print(f"❌ Coleção não encontrada: {e}")
+            return {
+                "response": "⚠️ Nenhum documento foi indexado ainda. Clique em 'Fazer Ingestão' primeiro."
+            }
+        
+        # Verificar quantos documentos estão indexados
+        count = collection.count()
+        print(f"📚 Documentos na coleção: {count}")
+        
+        if count == 0:
+            return {
+                "response": "⚠️ Coleção vazia. Faça a ingestão de PDFs primeiro."
+            }
+        
+        # 🔍 Buscar documentos similares
+        embedder = get_embedder()
+        query_embedding = embedder.encode(query)
+        
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=3
+        )
+        
+        # Verificar se encontrou resultados
+        if not results or not results.get("documents") or len(results["documents"][0]) == 0:
+            print("⚠️ Nenhum documento similar encontrado")
+            return {
+                "response": "Desculpe, não encontrei informações relevantes sobre sua pergunta nos documentos indexados."
+            }
+        
+        # 📄 Extrair contextos encontrados
+        documents = results["documents"][0]
+        metadatas = results["metadatas"][0] if results.get("metadatas") else []
+        
+        # Concatenar contextos
+        context = "\n\n".join(documents)
+        
+        # 🤖 Chamar GPT com contexto (RAG)
+        system_message = """Você é um assistente jurídico especializado em direito de trânsito brasileiro.
+Use as informações dos documentos fornecidos para responder as perguntas.
+Se a informação não estiver nos documentos, diga claramente.
+Sempre cite a fonte quando possível."""
+        
+        user_message = f"""Documentos relevantes:
+{context}
+
+Pergunta: {query}
+
+Responda com base nos documentos acima."""
+        
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Você é uma assistente jurídica chamada Babix, especialista em Direito de Trânsito."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
             ],
             temperature=0.5,
             max_tokens=500
         )
-
-        resposta = completion.choices[0].message.content.strip()
-        return {"response": resposta}
-
+        
+        answer = response.choices[0].message.content
+        
+        # Adicionar fontes
+        sources = [m.get("name", "Documento") for m in metadatas if m]
+        sources_text = f"\n\n📚 **Fontes:** {', '.join(set(sources))}" if sources else ""
+        
+        return {
+            "response": answer + sources_text
+        }
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Erro no chat: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return {
+            "response": f"Erro ao processar sua pergunta: {str(e)}"
+        }
