@@ -1,77 +1,69 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import os
-from openai import OpenAI
+from sentence_transformers import SentenceTransformer, util
 import chromadb
-from sentence_transformers import SentenceTransformer
+from chromadb.config import Settings
+import os
+import openai
 
 router = APIRouter()
 
-# 🔹 Conexão com Chroma e Modelos
+# Configurações principais
 CHROMA_DIR = os.getenv("CHROMA_DIR", "./dados/chroma")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-if not OPENAI_API_KEY:
-    raise ValueError("❌ Variável OPENAI_API_KEY não configurada")
-
-client = OpenAI(api_key=OPENAI_API_KEY)
-chroma = chromadb.Client(chromadb.config.Settings(persist_directory=CHROMA_DIR))
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# 🔹 Schema para requisição
+client = chromadb.Client(Settings(persist_directory=CHROMA_DIR))
+collection = client.get_or_create_collection("babix_docs")
+
+openai.api_key = OPENAI_API_KEY
+
 class ChatRequest(BaseModel):
     message: str
 
 @router.post("/chat")
-def chat(req: ChatRequest):
+async def chat(req: ChatRequest):
+    query = req.message.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Mensagem vazia.")
+
+    # 🔍 Busca semântica no banco Chroma
+    results = collection.query(
+        query_texts=[query],
+        n_results=3
+    )
+
+    if not results or not results.get("documents") or not results["documents"][0]:
+        return {"response": "Nenhum conhecimento foi indexado ainda."}
+
+    contextos = "\n\n".join(results["documents"][0])
+
+    # 💬 Prompt contextualizado
+    prompt = f"""
+Você é a Babix, uma IA especializada em Direito de Trânsito brasileiro.
+Responda com base apenas no contexto abaixo (se houver), e seja clara e direta.
+
+Contexto:
+{contextos}
+
+Pergunta do usuário:
+{query}
+"""
+
     try:
-        query = req.message.strip()
-        if not query:
-            raise HTTPException(status_code=400, detail="Mensagem vazia.")
-
-        # 1️⃣ Buscar contexto no Chroma
-        collections = chroma.list_collections()
-        if not collections:
-            return {"response": "Nenhum conhecimento foi indexado ainda."}
-
-        collection = chroma.get_or_create_collection("babix_docs")
-        query_emb = embedder.encode([query]).tolist()[0]
-
-        results = collection.query(
-            query_embeddings=[query_emb],
-            n_results=3
-        )
-
-        docs = results.get("documents", [[]])[0]
-        context = "\n\n".join(docs) if docs else "Nenhum contexto relevante encontrado."
-
-        # 2️⃣ Geração de resposta com contexto
-        prompt = f"""
-        Você é a Babix, uma IA jurídica especializada em Direito de Trânsito.
-        Responda de forma clara, citando a base de conhecimento quando relevante.
-        
-        Pergunta do usuário:
-        {query}
-
-        Contexto dos documentos:
-        {context}
-        """
-
-        completion = client.chat.completions.create(
-            model=OPENAI_MODEL,
+        completion = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Você é uma assistente jurídica da MG Multas."},
+                {"role": "system", "content": "Você é uma assistente jurídica chamada Babix, especialista em Direito de Trânsito."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7
+            temperature=0.5,
+            max_tokens=500
         )
 
-        answer = completion.choices[0].message.content.strip()
-        return {
-            "response": answer,
-            "context_used": len(docs)
-        }
+        resposta = completion.choices[0].message.content.strip()
+        return {"response": resposta}
 
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
