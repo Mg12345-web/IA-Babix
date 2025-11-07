@@ -1,61 +1,65 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import requests
 from bs4 import BeautifulSoup
+import requests
 from sentence_transformers import SentenceTransformer
-import chromadb
+from chromadb import Client
 from chromadb.config import Settings
 import os
 
 router = APIRouter()
 
-# Configurações
 CHROMA_DIR = os.getenv("CHROMA_DIR", "./dados/chroma")
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
-chroma = chromadb.Client(Settings(persist_directory=CHROMA_DIR))
-collection = chroma.get_or_create_collection("babix_docs")
+_embedder = None
 
-# Modelo do corpo da requisição
 class WebIngestRequest(BaseModel):
     url: str
 
-def extrair_texto(url: str) -> str:
-    """Baixa e limpa o texto principal de uma página web."""
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; BabixBot/1.0)"}
-    res = requests.get(url, headers=headers, timeout=20)
+def get_embedder():
+    global _embedder
+    if _embedder is None:
+        _embedder = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embedder
 
-    if res.status_code != 200:
-        raise HTTPException(status_code=400, detail=f"Erro ao acessar {url} ({res.status_code})")
-
-    soup = BeautifulSoup(res.text, "html.parser")
-
-    # Remove scripts e estilos
-    for tag in soup(["script", "style", "header", "footer", "nav", "aside"]):
-        tag.extract()
-
-    text = soup.get_text(separator=" ", strip=True)
-    return " ".join(text.split())  # remove espaçamento extra
-
+def get_chroma():
+    os.makedirs(CHROMA_DIR, exist_ok=True)
+    client = Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory=CHROMA_DIR))
+    return client.get_or_create_collection("babix_docs")
 
 @router.post("/ingest_web")
-def ingest_web(req: WebIngestRequest):
-    """Indexa o conteúdo textual de uma página web no Chroma."""
+async def ingest_web(req: WebIngestRequest):
     url = req.url.strip()
-    if not url:
-        raise HTTPException(status_code=400, detail="URL não informada.")
+    if not url.startswith("http"):
+        raise HTTPException(status_code=400, detail="URL inválida.")
+
+    print(f"🌐 Iniciando ingestão de: {url}")
 
     try:
-        texto = extrair_texto(url)
-        embedding = embedder.encode([texto])[0]
-
-        collection.add(
-            documents=[texto],
-            embeddings=[embedding],
-            metadatas=[{"url": url}],
-            ids=[url]
-        )
-
-        return {"status": "ok", "message": f"Página '{url}' indexada com sucesso!"}
-
+        response = requests.get(url, timeout=15)
+        response.raise_for_status()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Erro ao acessar a página: {str(e)}")
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Remove tags desnecessárias
+    for tag in soup(["script", "style", "noscript"]):
+        tag.extract()
+
+    text = " ".join(soup.get_text().split())
+    if not text or len(text) < 200:
+        raise HTTPException(status_code=400, detail="Conteúdo insuficiente para indexação.")
+
+    embedder = get_embedder()
+    chroma = get_chroma()
+
+    embedding = embedder.encode([text])[0]
+    chroma.add(
+        documents=[text],
+        embeddings=[embedding],
+        metadatas=[{"url": url}],
+        ids=[url]
+    )
+
+    print(f"✅ Página indexada com sucesso: {url}")
+    return {"status": "ok", "message": f"Página '{url}' indexada com sucesso!"}
