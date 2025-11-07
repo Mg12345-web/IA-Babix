@@ -15,7 +15,7 @@ openai==1.51.0
 torch==2.2.1
 transformers==4.39.3
 sentence-transformers==3.1.1
-chromadb==0.5.11
+chromadb==0.6.0
 
 # =============================
 # 🧾 Google Drive Integration
