@@ -5,6 +5,7 @@ from googleapiclient.http import MediaIoBaseDownload
 
 from sentence_transformers import SentenceTransformer
 import chromadb
+from .pdf_chunker import chunk_pdf
 
 # Use pasta de persistência configurável
 CHROMA_DIR = os.getenv("CHROMA_DIR", "./dados/chroma")
@@ -27,27 +28,13 @@ def get_drive_service():
     )
     return build("drive", "v3", credentials=creds)
 
-def extract_text(local_path, mime):
-    if mime == "application/pdf":
-        from PyPDF2 import PdfReader
-        reader = PdfReader(local_path)
-        return "\n".join([(p.extract_text() or "") for p in reader.pages]).strip()
-
-    if mime in ("application/vnd.openxmlformats-officedocument.wordprocessingml.document",):
-        import docx
-        doc = docx.Document(local_path)
-        return "\n".join([p.text for p in doc.paragraphs]).strip()
-
-    return ""  # tipos não suportados
-
 def get_chroma():
     os.makedirs(CHROMA_DIR, exist_ok=True)
-    # ✅ CORREÇÃO: Usa PersistentClient para evitar conflito
     client = chromadb.PersistentClient(path=CHROMA_DIR)
     return client.get_or_create_collection("babix_docs")
 
 def baixar_arquivos_drive():
-    """Função que indexa arquivos do Google Drive"""
+    """Função que indexa arquivos do Google Drive com chunking inteligente"""
     try:
         svc = get_drive_service()
 
@@ -72,6 +59,7 @@ def baixar_arquivos_drive():
             mime = f["mimeType"]
             print(f"⬇️ Baixando: {name} ({mime})")
 
+            # Baixar arquivo
             request = svc.files().get_media(fileId=file_id)
             buf = io.BytesIO()
             downloader = MediaIoBaseDownload(buf, request)
@@ -84,21 +72,65 @@ def baixar_arquivos_drive():
             with open(tmp, "wb") as out:
                 out.write(buf.read())
 
-            text = extract_text(tmp, mime)
-            if not text:
-                print(f"⚠️ Ignorado (tipo não suportado ou vazio): {name}")
-                continue
-
-            print(f"🔄 Gerando embedding para: {name}")
-            embedding = embedder.encode([text])[0]
-            
-            col.add(
-                documents=[text],
-                embeddings=[embedding],
-                metadatas=[{"name": name, "mime": mime}],
-                ids=[file_id]  # evita duplicar
-            )
-            print(f"✅ Indexado: {name}")
+            # Processar PDFs com chunking
+            if mime == "application/pdf":
+                print(f"📄 Processando PDF com chunking...")
+                texts, metadatas = chunk_pdf(tmp, chunk_size=1000, chunk_overlap=200)
+                
+                if not texts:
+                    print(f"⚠️ Falha ao processar: {name}")
+                    continue
+                
+                print(f"✂️ PDF dividido em {len(texts)} chunks")
+                
+                # Indexar cada chunk
+                for i, (text, meta) in enumerate(zip(texts, metadatas)):
+                    if not text.strip():
+                        continue
+                    
+                    print(f"🔄 Gerando embedding para chunk {i+1}/{len(texts)}")
+                    embedding = embedder.encode([text])[0]
+                    
+                    chunk_id = f"{file_id}_chunk_{i}"
+                    metadata = {
+                        "name": name,
+                        "mime": mime,
+                        "chunk_id": i,
+                        "page": meta.get("page", 0),
+                        "total_chunks": len(texts)
+                    }
+                    
+                    col.add(
+                        documents=[text],
+                        embeddings=[embedding],
+                        metadatas=[metadata],
+                        ids=[chunk_id]
+                    )
+                    
+                print(f"✅ Indexado: {name} ({len(texts)} chunks)")
+                
+            # Processar DOCX (sem chunking, já são menores)
+            elif mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                import docx
+                doc = docx.Document(tmp)
+                text = "\n".join([p.text for p in doc.paragraphs]).strip()
+                
+                if not text:
+                    print(f"⚠️ Documento vazio: {name}")
+                    continue
+                
+                print(f"🔄 Gerando embedding para: {name}")
+                embedding = embedder.encode([text])[0]
+                
+                col.add(
+                    documents=[text],
+                    embeddings=[embedding],
+                    metadatas=[{"name": name, "mime": mime}],
+                    ids=[file_id]
+                )
+                print(f"✅ Indexado: {name}")
+            else:
+                print(f"⚠️ Tipo não suportado: {mime}")
 
         print("✅ Ingestão concluída e persistida em", CHROMA_DIR)
         
