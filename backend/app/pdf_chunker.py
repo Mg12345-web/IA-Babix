@@ -5,16 +5,6 @@ import os
 def chunk_pdf(pdf_path, chunk_size=1000, chunk_overlap=200):
     """
     Divide um PDF em chunks menores mantendo contexto
-    
-    Args:
-        pdf_path: Caminho do PDF
-        chunk_size: Tamanho de cada chunk em caracteres
-        chunk_overlap: Sobreposição entre chunks para manter contexto
-    
-    Returns:
-        Tupla (texts, metadatas)
-        - texts: Lista de chunks (strings)
-        - metadatas: Lista de dicionários com metadados de cada chunk
     """
     try:
         print(f"📖 Carregando PDF: {pdf_path}")
