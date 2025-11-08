@@ -73,41 +73,40 @@ def baixar_arquivos_drive():
                 out.write(buf.read())
 
             # Processar PDFs com chunking
-            if mime == "application/pdf":
-                print(f"📄 Processando PDF com chunking...")
-                texts, metadatas = chunk_pdf(tmp, chunk_size=1000, chunk_overlap=200)
-                
-                if not texts:
-                    print(f"⚠️ Falha ao processar: {name}")
-                    continue
-                
-                print(f"✂️ PDF dividido em {len(texts)} chunks")
-                
-                # Indexar cada chunk
-                for i, (text, meta) in enumerate(zip(texts, metadatas)):
-                    if not text.strip():
-                        continue
-                    
-                    print(f"🔄 Gerando embedding para chunk {i+1}/{len(texts)}")
-                    embedding = embedder.encode([text])[0]
-                    
-                    chunk_id = f"{file_id}_chunk_{i}"
-                    metadata = {
-                        "name": name,
-                        "mime": mime,
-                        "chunk_id": i,
-                        "page": meta.get("page", 0),
-                        "total_chunks": len(texts)
-                    }
-                    
-                    col.add(
-                        documents=[text],
-                        embeddings=[embedding],
-                        metadatas=[metadata],
-                        ids=[chunk_id]
-                    )
-                    
-                print(f"✅ Indexado: {name} ({len(texts)} chunks)")
+if mime == "application/pdf":
+    print(f"📄 Processando PDF com chunking...")
+    texts, metadatas = chunk_pdf(tmp, chunk_size=1000, chunk_overlap=200)
+    
+    if not texts:
+        print(f"⚠️ Falha ao processar: {name}")
+        continue
+    
+    print(f"✂️ PDF dividido em {len(texts)} chunks")
+    
+    # Indexar cada chunk
+    for i, (text, meta) in enumerate(zip(texts, metadatas)):
+        if not text.strip():
+            continue
+        
+        embedding = embedder.encode([text])[0]
+        
+        chunk_id = f"{file_id}_chunk_{i}"
+        metadata = {
+            "name": name,
+            "mime": mime,
+            "chunk_id": i,
+            "page": meta.get("page", 0),
+            "total_chunks": len(texts)
+        }
+        
+        col.add(
+            documents=[text],
+            embeddings=[embedding],
+            metadatas=[metadata],
+            ids=[chunk_id]
+        )
+        
+    print(f"✅ Indexado: {name} ({len(texts)} chunks)")
                 
             # Processar DOCX (sem chunking, já são menores)
             elif mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
