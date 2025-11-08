@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 import chromadb
 import os
+import re
 from openai import OpenAI
 import tiktoken
 
@@ -34,6 +35,11 @@ def truncate_text(text, max_tokens=1000):
         return truncated + "..."
     return text
 
+def extract_codes(query):
+    """Extrai códigos/números da query (ex: 516-91, art 165)"""
+    codes = re.findall(r'\d{3}-\d{2}|\d{1,3}', query)
+    return codes
+
 class ChatRequest(BaseModel):
     message: str
 
@@ -41,6 +47,7 @@ class ChatRequest(BaseModel):
 async def chat(req: ChatRequest):
     """
     Endpoint de chat com RAG otimizado
+    Prioriza buscas por código quando detecta números
     """
     try:
         query = req.message.strip()
@@ -69,20 +76,31 @@ async def chat(req: ChatRequest):
                 "response": "⚠️ Coleção vazia. Faça a ingestão de PDFs primeiro."
             }
         
-        # 🔍 Buscar documentos similares (pega apenas 2 para economizar tokens)
+        # 🔍 Se houver números/códigos, melhorar query
+        codes = extract_codes(query)
+        if codes:
+            print(f"🔢 Códigos detectados: {codes}")
+            # Enriquecer a query com termos relacionados
+            query_enriched = query
+            for code in codes:
+                query_enriched += f" código {code} infração artigo"
+        else:
+            query_enriched = query
+        
+        # 🔍 Buscar documentos similares (pega 3 para ter mais contexto)
         embedder = get_embedder()
-        query_embedding = embedder.encode(query)
+        query_embedding = embedder.encode(query_enriched)
         
         results = collection.query(
             query_embeddings=[query_embedding],
-            n_results=2  # Reduzido de 3 para 2
+            n_results=3  # Aumentado para 3 para melhor contexto
         )
         
         # Verificar se encontrou resultados
         if not results or not results.get("documents") or len(results["documents"][0]) == 0:
             print("⚠️ Nenhum documento similar encontrado")
             return {
-                "response": "Desculpe, não encontrei informações relevantes sobre sua pergunta."
+                "response": "Desculpe, não encontrei informações sobre sua pergunta nos documentos indexados."
             }
         
         # 📄 Extrair contextos e truncar
@@ -98,21 +116,21 @@ async def chat(req: ChatRequest):
         print(f"📊 Tokens do contexto: {context_tokens}")
         
         if context_tokens > 2000:
-            # Se ainda for grande, truncar o contexto inteiro
             context = truncate_text(context, max_tokens=1500)
-            print("⚠️ Contexto muito grande, truncado para 1500 tokens")
+            print("⚠️ Contexto truncado para 1500 tokens")
         
-        # 🤖 Chamar GPT com contexto (RAG)
+        # 🤖 Chamar GPT com contexto
         system_message = """Você é um assistente jurídico especializado em direito de trânsito brasileiro.
 Use as informações dos documentos fornecidos para responder.
+Se tiver múltiplos documentos sobre o mesmo código, unifique a informação mais precisa.
 Seja conciso e objetivo. Máximo 200 palavras."""
         
-        user_message = f"""Informações dos documentos:
+        user_message = f"""Documentos relevantes:
 {context}
 
-Pergunta do usuário: {query}
+Pergunta: {query}
 
-Responda com base nas informações acima."""
+Responda com base nos documentos acima. Se houver conflito entre informações, use a mais recente ou da lei (CTB) em vez de resoluções."""
         
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -120,14 +138,14 @@ Responda com base nas informações acima."""
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message}
             ],
-            temperature=0.5,
-            max_tokens=300  # Reduzido para economizar
+            temperature=0.3,  # Reduzido para mais precisão
+            max_tokens=300
         )
         
         answer = response.choices[0].message.content
         
         # Adicionar fontes
-        sources = [m.get("name", "Documento")[:40] for m in metadatas if m]  # Apenas 40 chars
+        sources = [m.get("name", "Documento")[:50] for m in metadatas if m]
         sources_text = f"\n\n📚 Fontes: {', '.join(set(sources))}" if sources else ""
         
         return {
@@ -136,6 +154,8 @@ Responda com base nas informações acima."""
         
     except Exception as e:
         print(f"❌ Erro no chat: {str(e)}")
+        import traceback
+        traceback.print_exc()
         
         return {
             "response": f"Desculpe, tivemos um erro ao processar sua pergunta. Tente novamente em alguns segundos."
