@@ -59,77 +59,85 @@ def baixar_arquivos_drive():
             mime = f["mimeType"]
             print(f"⬇️ Baixando: {name} ({mime})")
 
-            # Baixar arquivo
-            request = svc.files().get_media(fileId=file_id)
-            buf = io.BytesIO()
-            downloader = MediaIoBaseDownload(buf, request)
-            done = False
-            while not done:
-                _, done = downloader.next_chunk()
-            buf.seek(0)
+            try:
+                # Baixar arquivo
+                request = svc.files().get_media(fileId=file_id)
+                buf = io.BytesIO()
+                downloader = MediaIoBaseDownload(buf, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
+                buf.seek(0)
 
-            tmp = f"/tmp/{name}"
-            with open(tmp, "wb") as out:
-                out.write(buf.read())
+                tmp = f"/tmp/{name}"
+                with open(tmp, "wb") as out:
+                    out.write(buf.read())
 
-            # Processar PDFs com chunking
-if mime == "application/pdf":
-    print(f"📄 Processando PDF com chunking...")
-    texts, metadatas = chunk_pdf(tmp, chunk_size=1000, chunk_overlap=200)
-    
-    if not texts:
-        print(f"⚠️ Falha ao processar: {name}")
-        continue
-    
-    print(f"✂️ PDF dividido em {len(texts)} chunks")
-    
-    # Indexar cada chunk
-    for i, (text, meta) in enumerate(zip(texts, metadatas)):
-        if not text.strip():
-            continue
-        
-        embedding = embedder.encode([text])[0]
-        
-        chunk_id = f"{file_id}_chunk_{i}"
-        metadata = {
-            "name": name,
-            "mime": mime,
-            "chunk_id": i,
-            "page": meta.get("page", 0),
-            "total_chunks": len(texts)
-        }
-        
-        col.add(
-            documents=[text],
-            embeddings=[embedding],
-            metadatas=[metadata],
-            ids=[chunk_id]
-        )
-        
-    print(f"✅ Indexado: {name} ({len(texts)} chunks)")
-                
-            # Processar DOCX (sem chunking, já são menores)
-            elif mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                import docx
-                doc = docx.Document(tmp)
-                text = "\n".join([p.text for p in doc.paragraphs]).strip()
-                
-                if not text:
-                    print(f"⚠️ Documento vazio: {name}")
-                    continue
-                
-                print(f"🔄 Gerando embedding para: {name}")
-                embedding = embedder.encode([text])[0]
-                
-                col.add(
-                    documents=[text],
-                    embeddings=[embedding],
-                    metadatas=[{"name": name, "mime": mime}],
-                    ids=[file_id]
-                )
-                print(f"✅ Indexado: {name}")
-            else:
-                print(f"⚠️ Tipo não suportado: {mime}")
+                # Processar PDFs com chunking
+                if mime == "application/pdf":
+                    print(f"📄 Processando PDF com chunking...")
+                    texts, metadatas = chunk_pdf(tmp, chunk_size=1000, chunk_overlap=200)
+                    
+                    if not texts:
+                        print(f"⚠️ Falha ao processar: {name}")
+                        continue
+                    
+                    print(f"✂️ PDF dividido em {len(texts)} chunks")
+                    
+                    # Indexar cada chunk
+                    for i, (text, meta) in enumerate(zip(texts, metadatas)):
+                        if not text.strip():
+                            continue
+                        
+                        print(f"🔄 Gerando embedding para chunk {i+1}/{len(texts)}")
+                        embedding = embedder.encode([text])[0]
+                        
+                        chunk_id = f"{file_id}_chunk_{i}"
+                        metadata = {
+                            "name": name,
+                            "mime": mime,
+                            "chunk_id": i,
+                            "page": meta.get("page", 0),
+                            "total_chunks": len(texts)
+                        }
+                        
+                        col.add(
+                            documents=[text],
+                            embeddings=[embedding],
+                            metadatas=[metadata],
+                            ids=[chunk_id]
+                        )
+                        
+                    print(f"✅ Indexado: {name} ({len(texts)} chunks)")
+                    
+                # Processar DOCX (sem chunking, já são menores)
+                elif mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                    import docx
+                    doc = docx.Document(tmp)
+                    text = "\n".join([p.text for p in doc.paragraphs]).strip()
+                    
+                    if not text:
+                        print(f"⚠️ Documento vazio: {name}")
+                        continue
+                    
+                    print(f"🔄 Gerando embedding para: {name}")
+                    embedding = embedder.encode([text])[0]
+                    
+                    col.add(
+                        documents=[text],
+                        embeddings=[embedding],
+                        metadatas=[{"name": name, "mime": mime}],
+                        ids=[file_id]
+                    )
+                    print(f"✅ Indexado: {name}")
+                else:
+                    print(f"⚠️ Tipo não suportado: {mime}")
+                    
+            except Exception as e:
+                print(f"❌ Erro ao processar {name}: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
 
         print("✅ Ingestão concluída e persistida em", CHROMA_DIR)
         
